@@ -14,13 +14,13 @@
   "series": {
     "image": {
       "storage": "segmented",
-      "description": "Raw projections. Image size is fixed for one recording (binning applied).",
+      "description": "Projections. Image size and data type are fixed for one recording (binning applied).",
       "fields": {
         "image": {
-          "dtype": "uint16",
+          "dtype": ["uint16", "float32", "uint8"],
           "shape": ["height", "width"],
           "units": "counts",
-          "description": "Row-major, row 0 at the top (+y), column 0 at the left (-x)."
+          "description": "Row-major, row 0 at the top (+y), column 0 at the left (-x). uint16 for raw detector counts; float32 for corrected, normalised or simulated projections."
         }
       }
     },

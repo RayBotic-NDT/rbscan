@@ -1,0 +1,43 @@
+{
+  "schema": "raybotic.volume",
+  "version": 1,
+  "category": "volumes",
+  "description": "A 3-D volume (reconstruction, simulation, segmentation) as a stack of slices along its k axis. Voxel (i, j, k) = (column, row, slice) has its centre at voxel_to_world * (i, j, k, 1), indices at voxel centres. The slices series holds one sample per slice in k order; its time is when the volume was made.",
+  "attributes": {
+    "width": { "dtype": "uint32", "required": true, "units": "voxel", "description": "Voxels along i (columns)." },
+    "height": { "dtype": "uint32", "required": true, "units": "voxel", "description": "Voxels along j (rows)." },
+    "depth": { "dtype": "uint32", "required": true, "units": "voxel", "description": "Voxels along k (slices)." },
+    "voxel_to_world": {
+      "dtype": "float64",
+      "array": true,
+      "required": true,
+      "units": "m",
+      "description": "4x4 row-major affine from voxel index (i, j, k, 1) to world (x, y, z, 1)."
+    },
+    "voxel_size": {
+      "dtype": "float64",
+      "array": true,
+      "required": true,
+      "units": "m",
+      "description": "Edge along i, j, k (the column norms of voxel_to_world)."
+    },
+    "world_frame": { "dtype": "string" },
+    "quantity": {
+      "dtype": "string",
+      "description": "What the values are: attenuation, gray_value, label, ..."
+    },
+    "value_units": { "dtype": "string", "description": "Units of the values, e.g. 1/m." },
+    "acquisition": { "dtype": "string", "description": "Node path of the acquisition it was made from." },
+    "software": { "dtype": "string" },
+    "parameters": { "dtype": "string", "description": "Settings it was made with, e.g. the reco.json (JSON)." }
+  },
+  "series": {
+    "slices": {
+      "storage": "segmented",
+      "description": "Slice k as sample k.",
+      "fields": {
+        "slice": { "dtype": ["float32", "uint16", "uint8"], "shape": ["height", "width"] }
+      }
+    }
+  }
+}

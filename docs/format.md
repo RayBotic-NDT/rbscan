@@ -117,6 +117,32 @@ While the master is open for writing, other processes cannot open it (HDF5
 file locking). To follow a recording live, use
 `SeriesReader::open_segments(scan_dir, node_path, series)` and `refresh()`.
 
+## Projection geometry
+
+`acquisitions/<name>/projections` holds one row per projection, in the world
+frame, lengths in m. `rbscan resolve-geometry` derives it from the recorded
+frames. The conventions match `raybotic_scan_pose_interfaces/ScanPose`:
+
+- **Detector frame** (`frame_id` of the detector): its origin is the centre of
+  the active area, x points to image right (increasing column), y points up,
+  z is the normal towards the source. Rows therefore run along -y, so
+  `detector_u = R·(1, 0, 0)` and `detector_v = R·(0, -1, 0)`.
+- **Source frame** (`frame_id` of the source): its origin is the focal spot,
+  z is the central beam.
+- `detector_position` is the image centre, i.e. pixel coordinate
+  ((W - 1) / 2, (H - 1) / 2).
+- `pixel_size` = pitch × binning, where binning is the detector state in
+  force at the image's time.
+- `projection_matrix` maps homogeneous world points (m) to (column, row) · w.
+- `flags`:
+
+  | Bit | Meaning |
+  |---|---|
+  | 0 | invalid: the time lies outside the recorded frames |
+  | 1 | geometry interpolated between frame samples |
+  | 2 | a robot tracking the source or detector frame was unreachable |
+  | 3 | emission was not on |
+
 ## Schemas
 
 A schema is a JSON object:

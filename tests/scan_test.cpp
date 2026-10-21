@@ -159,3 +159,38 @@ TEST(Scan, AttributesFollowTheSchemaType) {
     EXPECT_EQ(std::get<std::string>(*node.attribute("x_custom")), "allowed");
     EXPECT_FALSE(node.attributes().contains("schema_json"));
 }
+
+TEST(Scan, OpenExistingScanToAddAndReplaceNodes) {
+    TempDir dir;
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        (void)scan.add_node("source_robot", "raybotic.robot_arm", robot_attributes());
+    }
+    auto document = [](const char* text) {
+        return rs::Attributes{{"application", std::string("test")},
+                              {"format", std::string("test/1")},
+                              {"document", std::string(text)}};
+    };
+    for (const char* text : {"first", "second"}) {
+        auto scan = rs::ScanWriter::open(dir.path());
+        if (scan.has_node("annotations/viewer")) scan.remove_node("annotations/viewer");
+        auto node = scan.add_node("viewer", "raybotic.annotations", document(text));
+        const double pos[3] = {0.01, 0.02, 0.03};
+        const std::uint32_t id = 7, n = 2;
+        const std::uint8_t src = 1, quality = 3;
+        node.series("markers").append(1, {{"region_id", rs::scalar(id)},
+                                          {"marker_id", rs::scalar(id)},
+                                          {"position", rs::view(pos, {3})},
+                                          {"position_source", rs::scalar(src)},
+                                          {"quality", rs::scalar(quality)},
+                                          {"observations", rs::scalar(n)}});
+        EXPECT_THROW(scan.remove_node("annotations/viewer"), rs::Error);  // added just now
+        scan.finalize();
+    }
+    const auto reader = rs::ScanReader::open(dir.path());
+    EXPECT_TRUE(reader.complete());
+    EXPECT_TRUE(reader.has_node("robots/source_robot"));
+    const auto node = reader.node("annotations/viewer");
+    EXPECT_EQ(std::get<std::string>(*node.attribute("document")), "second");
+    EXPECT_EQ(node.series("markers").size(), 1u);
+}

@@ -1,0 +1,24 @@
+{
+  "schema": "raybotic.ezrt_import",
+  "version": 1,
+  "category": "imports",
+  "description": "Projections converted from Fraunhofer EZRT .raw files: the original 2048-byte header of every projection, so a conversion back to EZRT is lossless, and how the detector was read (reco.json).",
+  "attributes": {
+    "source_folders": { "dtype": "string", "array": true, "required": true },
+    "files": { "dtype": "string", "array": true, "description": "File names in projection order." },
+    "acquisition": { "dtype": "string", "description": "Node path of the ct_acquisition built from the headers." },
+    "negate_detector_u": { "dtype": "bool", "description": "reco.json loader.negate_detector_orientation_u." },
+    "negate_detector_v": { "dtype": "bool", "description": "reco.json loader.negate_detector_orientation_v." },
+    "detector_shift_u_mm": { "dtype": "float64", "units": "mm" },
+    "detector_shift_v_mm": { "dtype": "float64", "units": "mm" }
+  },
+  "series": {
+    "headers": {
+      "storage": "inline",
+      "description": "One row per projection, in the order of the acquisition's projections; time = the projection's time.",
+      "fields": {
+        "header": { "dtype": "uint8", "shape": [2048], "description": "EZRT header as stored in the file." }
+      }
+    }
+  }
+}

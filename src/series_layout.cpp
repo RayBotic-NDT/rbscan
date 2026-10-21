@@ -39,7 +39,18 @@ std::uint64_t resolve_dim(const DimSpec& dim, const Dims& dims, const Attributes
 }  // namespace
 
 SeriesLayout SeriesLayout::make(const SeriesSpec& spec, const Dims& dims, const Attributes& node,
-                                std::size_t chunk_bytes, std::uint64_t max_chunk_samples) {
+                                std::size_t chunk_bytes, std::uint64_t max_chunk_samples,
+                                const FieldTypes& types) {
+    for (const auto& [name, type] : types) {
+        const FieldSpec* f = spec.field(name);
+        if (f == nullptr) {
+            throw Error("series '" + spec.name + "' has no field '" + name + "'");
+        }
+        if (!f->allows(type)) {
+            throw Error("series '" + spec.name + "', field '" + name + "' cannot be " +
+                        std::string(to_string(type)));
+        }
+    }
     SeriesLayout layout;
     layout.spec = spec;
     auto add = [&](FieldLayout f) {
@@ -60,6 +71,7 @@ SeriesLayout SeriesLayout::make(const SeriesSpec& spec, const Dims& dims, const 
         FieldLayout f;
         f.name = fs.name;
         f.dtype = fs.dtype;
+        if (auto it = types.find(fs.name); it != types.end()) f.dtype = it->second;
         for (const auto& d : fs.shape) {
             f.sample_shape.push_back(resolve_dim(d, dims, node, spec.name, fs.name));
         }

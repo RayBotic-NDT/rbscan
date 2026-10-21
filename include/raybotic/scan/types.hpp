@@ -147,6 +147,10 @@ using Attributes = std::map<std::string, Value>;
 /// {"height", 1536}, {"width", 1536}.
 using Dims = std::map<std::string, std::uint64_t, std::less<>>;
 
+/// Data type per field for fields whose schema allows several (e.g. a
+/// detector image as uint16 or float32): {"image", DType::Float32}.
+using FieldTypes = std::map<std::string, DType, std::less<>>;
+
 /// One field of a sample handed to append().
 struct FieldValue {
     std::string_view name;

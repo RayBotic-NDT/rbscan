@@ -39,6 +39,8 @@ struct CompressionOptions {
 /// Options for a series stored in the master file.
 struct InlineOptions {
     CompressionOptions compression{};
+    /// Data types for fields that allow several (default: the schema's first).
+    FieldTypes dtypes;
     /// Target chunk size; samples per chunk = max(1, chunk_bytes / sample size).
     std::size_t chunk_bytes{256 * 1024};
 };
@@ -47,6 +49,9 @@ struct InlineOptions {
 struct SegmentOptions {
     /// Samples per segment file. Projections: ~500 keeps files at a few GB.
     std::uint64_t segment_size{500};
+    /// Data types for fields that allow several (default: the schema's first),
+    /// e.g. {"image", DType::Float32} for corrected or simulated projections.
+    FieldTypes dtypes;
     CompressionOptions compression{};
     /// Compression threads of this writer; 0 = half the hardware threads.
     unsigned threads{0};
@@ -178,12 +183,24 @@ public:
     [[nodiscard]] static ScanWriter create(const std::filesystem::path& scan_dir,
                                            const ScanInfo& info = {}, bool overwrite = false);
 
+    /// Opens an existing scan to add or replace nodes (annotations, results,
+    /// a resolved geometry, ...). finalize() relinks segments and keeps the
+    /// scan's `complete` flag as it was. Fails while another writer or reader
+    /// has the master file open.
+    [[nodiscard]] static ScanWriter open(const std::filesystem::path& scan_dir);
+
     /// Adds a node under the schema's category. Required attributes must be
     /// given. Abstract schemas cannot be instantiated.
     NodeWriter add_node(std::string_view name, std::string_view schema_id,
                         const Attributes& attributes = {});
     /// A node added before, by path ("sensors/detector_0").
     [[nodiscard]] NodeWriter node(std::string_view path) const;
+    /// Whether the master holds a node at `path` (from this or an earlier session).
+    [[nodiscard]] bool has_node(std::string_view path) const;
+    /// Removes a node from the master. Refused for nodes with segment files on
+    /// disk (finalize would link them in again) and for nodes added by this
+    /// writer.
+    void remove_node(std::string_view path);
 
     /// Writes buffered inline samples and flushes the master file.
     void flush();

@@ -4,6 +4,7 @@
 //
 //   rbscan_record_ct_scan <scan_dir> [projections=360] [size=1024] [threads=0]
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -33,6 +34,14 @@ std::vector<std::uint16_t> projection(std::uint64_t size, double angle) {
         }
     }
     return img;
+}
+
+/// Quaternion (x, y, z, w) of a scan frame turned by theta about the world z
+/// axis. Scan frames have y up and z along the beam axis: at theta = 0,
+/// x -> +y, y -> +z, z -> +x (120 deg about (1, 1, 1)).
+std::array<double, 4> frame_rotation(double theta) {
+    const double c = std::cos(theta / 2), s = std::sin(theta / 2);
+    return {0.5 * (c - s), 0.5 * (c + s), 0.5 * (c + s), 0.5 * (c - s)};
 }
 
 }  // namespace
@@ -149,7 +158,9 @@ int main(int argc, char** argv) {
             const double u[3] = {-s, c, 0.0};
             const double v[3] = {0.0, 0.0, -1.0};
             const double px[2] = {pixel, pixel};
-            const double q_src[4] = {0, 0, std::sin(a / 2), std::cos(a / 2)};
+            // Detector: z towards the source; source: z towards the detector.
+            const auto q_det = frame_rotation(a);
+            const auto q_src = frame_rotation(a + std::numbers::pi);
 
             // Robots and frames at a higher rate than the projections.
             for (int k = 0; k < 4; ++k) {
@@ -159,9 +170,9 @@ int main(int argc, char** argv) {
                 source_joints.append(tk, {{"position", rs::view(q)}});
                 detector_joints.append(tk, {{"position", rs::view(q)}});
                 source_tf.append(tk, {{"translation", rs::view(src, {3})},
-                                      {"rotation", rs::view(q_src, {4})}});
+                                      {"rotation", rs::view(q_src.data(), {4})}});
                 detector_tf.append(tk, {{"translation", rs::view(det, {3})},
-                                        {"rotation", rs::view(q_src, {4})}});
+                                        {"rotation", rs::view(q_det.data(), {4})}});
             }
 
             const auto& img = phantom[i % phantom.size()];

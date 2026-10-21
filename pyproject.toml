@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.24"]
 
+[project.scripts]
+rbscan = "rbscan.__main__:main"
+
 [project.optional-dependencies]
 test = ["pytest>=8", "h5py>=3.10"]
 
@@ -27,6 +30,7 @@ sdist.exclude = [".deps", "build", ".venv"]
 RBSCAN_BUILD_PYTHON = "ON"
 RBSCAN_BUILD_TESTS = "OFF"
 RBSCAN_BUILD_EXAMPLES = "OFF"
+RBSCAN_BUILD_TOOLS = "OFF"
 
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]

@@ -21,6 +21,9 @@ struct ScanWriter::Impl {
     std::filesystem::path dir;
     h5::Id file;
     bool finalized{false};
+    /// Value of the `complete` flag finalize() writes: true for new scans, the
+    /// previous value for scans opened with ScanWriter::open().
+    bool mark_complete{true};
     std::vector<std::shared_ptr<NodeWriter::Impl>> nodes;
 
     void require_open() const;

@@ -40,7 +40,7 @@ SegmentedSeriesWriter::Impl::Impl(fs::path scan_dir_, std::string node_path_,
     if (options.segment_size == 0) throw Error("segment_size must be > 0");
     if (options.max_pending == 0) options.max_pending = 1;
     layout = detail::SeriesLayout::make(spec, dims, node_attributes, options.chunk_bytes,
-                                        options.segment_size);
+                                        options.segment_size, options.dtypes);
     series_dir = scan_dir / fs::path(node_path) / series;
     if (!detail::list_segments(series_dir).empty()) {
         throw Error(detail::utf8(series_dir) + " already holds segments of another recording");

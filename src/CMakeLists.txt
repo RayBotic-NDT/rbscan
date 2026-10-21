@@ -4,12 +4,14 @@ rbscan_embed_schemas("${_schemas_cpp}" "${PROJECT_SOURCE_DIR}/schemas")
 add_library(rbscan SHARED
     compression.cpp
     convert.cpp
+    geometry.cpp
     h5.cpp
     internal.cpp
     reader.cpp
     schema.cpp
     segmented_writer.cpp
     series_layout.cpp
+    tools.cpp
     types.cpp
     vds.cpp
     writer.cpp
@@ -41,6 +43,10 @@ if(WIN32)
     add_custom_command(TARGET rbscan POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:${RBSCAN_HDF5_TARGET}> $<TARGET_FILE_DIR:rbscan>)
+endif()
+
+if(NOT RBSCAN_INSTALL)
+    return()
 endif()
 
 include(GNUInstallDirs)

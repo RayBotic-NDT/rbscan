@@ -27,10 +27,15 @@ set_target_properties(_rbscan PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${_pkg}")
 file(GLOB _py_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/rbscan/*.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/rbscan/py.typed")
-add_custom_command(TARGET _rbscan POST_BUILD
+# A target of its own, so a rebuilt rbscan.dll is copied even when the module
+# itself did not relink.
+add_custom_target(rbscan_python_package ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_pkg}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_py_sources} "${_pkg}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rbscan> "${_pkg}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${RBSCAN_HDF5_TARGET}> "${_pkg}")
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${RBSCAN_HDF5_TARGET}> "${_pkg}"
+    DEPENDS rbscan _rbscan
+    VERBATIM)
 set(RBSCAN_PYTHON_PACKAGE_DIR "${CMAKE_BINARY_DIR}/python/$<CONFIG>" PARENT_SCOPE)
 
 # Wheel (scikit-build-core installs the "python" component only).

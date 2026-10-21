@@ -109,7 +109,8 @@ SeriesWriter NodeWriter::series(std::string_view name, const Dims& dims,
     s->scan = scan;
     s->compression = options.compression;
     s->layout = detail::SeriesLayout::make(spec, dims, impl_->attributes, options.chunk_bytes,
-                                           std::numeric_limits<std::uint64_t>::max());
+                                           std::numeric_limits<std::uint64_t>::max(),
+                                           options.dtypes);
     h5::Lock lock(h5::mutex());
     s->group = h5::ensure_group(impl_->group.get(), spec.name);
     h5::write_string_attribute(s->group.get(), "storage", "inline");
@@ -165,7 +166,7 @@ void ScanWriter::Impl::finalize() {
     try {
         h5::Lock lock(h5::mutex());
         detail::link_all_segments(file.get(), dir);
-        h5::write_attribute(file.get(), "complete", Value(true), DType::Bool);
+        h5::write_attribute(file.get(), "complete", Value(mark_complete), DType::Bool);
         h5::write_string_attribute(file.get(), "finalized", detail::now_iso8601());
     } catch (...) {
         keep();
@@ -244,6 +245,54 @@ ScanWriter ScanWriter::create(const fs::path& scan_dir, const ScanInfo& info, bo
     if (!info.sample_id.empty()) h5::write_string_attribute(f, "sample_id", info.sample_id);
     for (const auto& [name, value] : info.extra) h5::write_attribute(f, name, value);
     return ScanWriter(std::move(impl));
+}
+
+ScanWriter ScanWriter::open(const fs::path& scan_dir) {
+    h5::init();
+    const fs::path master = scan_dir / master_file_name;
+    if (!fs::exists(master)) throw Error("no scan at " + detail::utf8(scan_dir));
+    auto impl = std::make_shared<Impl>();
+    impl->dir = scan_dir;
+    h5::Lock lock(h5::mutex());
+    try {
+        impl->file = h5::open_file(detail::utf8(master), H5F_ACC_RDWR);
+    } catch (const Error& e) {
+        throw Error(std::string("cannot open the scan for writing; close every reader or writer "
+                                "of it first: ") +
+                    e.what());
+    }
+    if (h5::read_string_attribute(impl->file.get(), "format") != format_name) {
+        throw Error(detail::utf8(master) + " is not a " + std::string(format_name) + " file");
+    }
+    const auto complete = h5::read_attribute(impl->file.get(), "complete");
+    impl->mark_complete = complete && std::holds_alternative<bool>(*complete) &&
+                          std::get<bool>(*complete);
+    return ScanWriter(std::move(impl));
+}
+
+bool ScanWriter::has_node(std::string_view path) const {
+    impl_->require_open();
+    h5::Lock lock(h5::mutex());
+    return h5::exists(impl_->file.get(), std::string(path)) &&
+           h5::is_group(impl_->file.get(), std::string(path));
+}
+
+void ScanWriter::remove_node(std::string_view path) {
+    impl_->require_open();
+    const std::string p(path);
+    for (const auto& n : impl_->nodes) {
+        if (n->path == p) throw Error("node '" + p + "' was added by this writer");
+    }
+    std::error_code ec;
+    for (const auto& series : fs::directory_iterator(impl_->dir / fs::path(p), ec)) {
+        if (series.is_directory() && !detail::list_segments(series.path()).empty()) {
+            throw Error("node '" + p + "' has segment files in " + detail::utf8(series.path()) +
+                        "; delete them first");
+        }
+    }
+    h5::Lock lock(h5::mutex());
+    if (!has_node(p)) throw Error("no node '" + p + "'");
+    h5::check(H5Ldelete(impl_->file.get(), p.c_str(), H5P_DEFAULT), "removing " + p);
 }
 
 NodeWriter ScanWriter::add_node(std::string_view name, std::string_view schema_id,

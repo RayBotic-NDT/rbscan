@@ -27,6 +27,17 @@ FOD, FDD, PIXEL = 0.4, 1.0, 139e-6  # m
 PERIOD_NS = 200_000_000  # one projection every 200 ms
 
 
+def frame_rotation(theta: float) -> list[float]:
+    """Quaternion (x, y, z, w) of a scan frame that looks along -x rotated by theta about z.
+
+    Scan frames have y up and z along the beam axis (ScanPose convention): at
+    theta = 0, x -> +y, y -> +z, z -> +x (a 120 deg turn about (1, 1, 1)), then
+    the turn about the world z axis.
+    """
+    c, s = math.cos(theta / 2), math.sin(theta / 2)
+    return [0.5 * (c - s), 0.5 * (c + s), 0.5 * (c + s), 0.5 * (c - s)]
+
+
 def phantom(size: int, angle: float) -> np.ndarray:
     """A blurred disc that moves with the angle, plus a little texture."""
     y, x = np.mgrid[0:size, 0:size].astype(np.float32)
@@ -96,7 +107,9 @@ def record(scan_dir: Path, n: int, size: int) -> None:
         c, s = math.cos(a), math.sin(a)
         src = [FOD * c, FOD * s, 0.0]
         det = [-(FDD - FOD) * c, -(FDD - FOD) * s, 0.0]
-        rotation = [0.0, 0.0, math.sin(a / 2), math.cos(a / 2)]
+        # Detector: z towards the source; source: z towards the detector.
+        det_rotation = frame_rotation(a)
+        src_rotation = frame_rotation(a + math.pi)
 
         # Robots and frames at four times the projection rate.
         for k in range(4):
@@ -104,8 +117,8 @@ def record(scan_dir: Path, n: int, size: int) -> None:
             q = 0.3 * np.sin(a + 0.1 * np.arange(6) + 0.01 * k)
             for joints in robots.values():
                 joints.append(tk, position=q)
-            frames["scan_source"].append(tk, translation=src, rotation=rotation)
-            frames["scan_detector"].append(tk, translation=det, rotation=rotation)
+            frames["scan_source"].append(tk, translation=src, rotation=src_rotation)
+            frames["scan_detector"].append(tk, translation=det, rotation=det_rotation)
 
         projections.append(
             t, image_index=i, source_position=src, detector_position=det,

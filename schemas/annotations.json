@@ -1,0 +1,45 @@
+{
+  "schema": "raybotic.annotations",
+  "version": 1,
+  "category": "annotations",
+  "description": "Markers, measurements and sections set in a viewer. 'document' holds the application's complete annotation document; markers and their observations are also stored as tables, so other tools need not parse it. Positions are in the scan's world frame.",
+  "attributes": {
+    "application": { "dtype": "string", "required": true, "description": "e.g. RayBotic Viewer 0.1.1." },
+    "format": { "dtype": "string", "required": true, "description": "Format of 'document', e.g. raybotic_viewer.annotations/1." },
+    "document": { "dtype": "string", "required": true, "description": "The complete annotation document (JSON)." },
+    "modified": { "dtype": "string", "description": "ISO 8601 UTC." },
+    "acquisition": {
+      "dtype": "string",
+      "description": "Node path of the ct_acquisition whose projection rows the observations refer to."
+    }
+  },
+  "series": {
+    "markers": {
+      "storage": "inline",
+      "description": "One row per marker; time = when the document was saved.",
+      "fields": {
+        "region_id": { "dtype": "uint32" },
+        "marker_id": { "dtype": "uint32" },
+        "position": { "dtype": "float64", "shape": [3], "units": "m", "description": "World position; NaN when unknown." },
+        "position_source": { "dtype": "uint8", "description": "0 none, 1 triangulated from observations, 2 set in a volume slice." },
+        "quality": { "dtype": "uint8", "description": "Triangulation: 0 none, 1 poor, 2 fair, 3 good." },
+        "observations": { "dtype": "uint32", "description": "Number of projections the marker was set in." }
+      }
+    },
+    "observations": {
+      "storage": "inline",
+      "description": "Where a marker was set in a projection; time = the projection's time.",
+      "fields": {
+        "marker_id": { "dtype": "uint32" },
+        "projection": { "dtype": "uint64", "description": "Row in the acquisition's projections." },
+        "image_index": { "dtype": "uint64", "description": "Sample in the detector's image series." },
+        "pixel": {
+          "dtype": "float64",
+          "shape": [2],
+          "units": "px",
+          "description": "Column, row; pixel centres at integer values (pixel 0 spans -0.5 .. 0.5)."
+        }
+      }
+    }
+  }
+}

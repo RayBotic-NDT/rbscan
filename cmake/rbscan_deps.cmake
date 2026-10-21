@@ -102,10 +102,12 @@ if(RBSCAN_BUILD_HDF5)
         file(TOUCH "${_prefix}/.complete")
     endif()
     set(RBSCAN_HDF5_PREFIX "${_prefix}" CACHE INTERNAL "")
-    find_package(HDF5 CONFIG REQUIRED NAMES hdf5
+    # GLOBAL: a parent project that adds rbscan as a subdirectory needs the
+    # target to ship the DLL.
+    find_package(HDF5 CONFIG REQUIRED NAMES hdf5 GLOBAL
         PATHS "${_prefix}" "${_prefix}/cmake" "${_prefix}/share/cmake" NO_DEFAULT_PATH)
 else()
-    find_package(HDF5 CONFIG REQUIRED NAMES hdf5)
+    find_package(HDF5 CONFIG REQUIRED NAMES hdf5 GLOBAL)
 endif()
 
 foreach(_t hdf5::hdf5-shared hdf5-shared hdf5::rbscan_hdf5-shared rbscan_hdf5-shared)
@@ -117,6 +119,7 @@ endforeach()
 if(NOT RBSCAN_HDF5_TARGET)
     message(FATAL_ERROR "rbscan: HDF5 found, but without a shared C library target")
 endif()
+set(RBSCAN_HDF5_TARGET "${RBSCAN_HDF5_TARGET}" CACHE INTERNAL "HDF5 target rbscan links")
 message(STATUS "rbscan: HDF5 ${HDF5_VERSION} (${RBSCAN_HDF5_TARGET})")
 
 FetchContent_Declare(libdeflate

@@ -42,8 +42,10 @@ struct SeriesLayout {
     /// Resolves named dimensions from `dims`, then from integer attributes and
     /// lengths of array attributes of the node. Chunks hold
     /// max(1, chunk_bytes / sample size) samples, at most max_chunk_samples.
+    /// `types` picks another allowed dtype per field.
     static SeriesLayout make(const SeriesSpec& spec, const Dims& dims, const Attributes& node,
-                             std::size_t chunk_bytes, std::uint64_t max_chunk_samples);
+                             std::size_t chunk_bytes, std::uint64_t max_chunk_samples,
+                             const FieldTypes& types = {});
 
     /// Index into fields; npos if unknown.
     [[nodiscard]] std::size_t index(std::string_view name) const;

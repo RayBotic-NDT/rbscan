@@ -4,10 +4,10 @@
   "extends": "raybotic.sensor/1",
   "description": "X-ray tube and generator (raybotic_xray_interfaces/SourceState). frame_id is the focal spot frame, z = central beam towards the detector.",
   "attributes": {
-    "voltage_min_kv": { "dtype": "float64", "required": true, "units": "kV" },
-    "voltage_max_kv": { "dtype": "float64", "required": true, "units": "kV" },
-    "current_max_ua": { "dtype": "float64", "required": true, "units": "uA" },
-    "power_max_w": { "dtype": "float64", "required": true, "units": "W" },
+    "voltage_min_kv": { "dtype": "float64", "units": "kV" },
+    "voltage_max_kv": { "dtype": "float64", "units": "kV" },
+    "current_max_ua": { "dtype": "float64", "units": "uA" },
+    "power_max_w": { "dtype": "float64", "units": "W" },
     "focal_spots_um": {
       "dtype": "float64",
       "array": true,
@@ -32,7 +32,7 @@
         "emission_permitted": { "dtype": "bool", "description": "Interlock closed, door shut, key switch on." },
         "voltage_setpoint_kv": { "dtype": "float64", "units": "kV" },
         "current_setpoint_ua": { "dtype": "float64", "units": "uA" },
-        "focal_spot_um": { "dtype": "float64", "units": "um" },
+        "focal_spot_um": { "dtype": "float64", "units": "um", "optional": true },
         "voltage_kv": { "dtype": "float64", "units": "kV", "description": "Actual value; 0 while emission is off." },
         "current_ua": { "dtype": "float64", "units": "uA", "description": "Actual value; 0 while emission is off." },
         "power_w": { "dtype": "float64", "units": "W", "description": "Actual value; 0 while emission is off." },

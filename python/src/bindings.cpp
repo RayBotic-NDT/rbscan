@@ -163,6 +163,18 @@ struct Sample {
     }
 };
 
+rs::FieldTypes to_field_types(const py::handle& mapping) {
+    rs::FieldTypes out;
+    if (mapping.is_none()) return out;
+    for (auto [key, value] : mapping.cast<py::dict>()) {
+        // A dtype name, a numpy dtype or a numpy type (np.float32).
+        const std::string name =
+            py::str(py::module_::import("numpy").attr("dtype")(value).attr("name"));
+        out.emplace(key.cast<std::string>(), rs::dtype_from_string(name));
+    }
+    return out;
+}
+
 rs::CompressionOptions compression_options(const std::string& method, int level) {
     rs::CompressionOptions c;
     if (method == "none") {
@@ -180,8 +192,10 @@ rs::CompressionOptions compression_options(const std::string& method, int level)
 
 rs::SegmentOptions segment_options(std::uint64_t segment_size, const std::string& compression,
                                    int level, unsigned threads, std::size_t max_pending,
-                                   std::size_t chunk_bytes, bool swmr, std::uint64_t flush_every) {
+                                   std::size_t chunk_bytes, bool swmr, std::uint64_t flush_every,
+                                   const py::object& dtypes) {
     rs::SegmentOptions o;
+    o.dtypes = to_field_types(dtypes);
     o.segment_size = segment_size;
     o.compression = compression_options(compression, level);
     o.threads = threads;
@@ -292,11 +306,11 @@ PYBIND11_MODULE(_rbscan, m) {
                const py::object& attributes, std::uint64_t segment_size,
                const std::string& compression, int level, unsigned threads,
                std::size_t max_pending, std::size_t chunk_bytes, bool swmr,
-               std::uint64_t flush_every) {
+               std::uint64_t flush_every, const py::object& dtypes) {
                 return rs::SegmentedSeriesWriter::open(
                     scan_dir, node_path, schema, series, to_dims(dims),
                     segment_options(segment_size, compression, level, threads, max_pending,
-                                    chunk_bytes, swmr, flush_every),
+                                    chunk_bytes, swmr, flush_every, dtypes),
                     to_attributes(attributes));
             },
             py::arg("scan_dir"), py::arg("node_path"), py::arg("schema"), py::arg("series"),
@@ -304,7 +318,7 @@ PYBIND11_MODULE(_rbscan, m) {
             py::arg("segment_size") = 500, py::arg("compression") = "shuffle_deflate",
             py::arg("level") = 1, py::arg("threads") = 0, py::arg("max_pending") = 64,
             py::arg("chunk_bytes") = 1 << 20, py::arg("swmr") = true,
-            py::arg("flush_every") = 16,
+            py::arg("flush_every") = 16, py::arg("dtypes") = py::none(),
             "Writer for a segmented series without the master file (e.g. in another process).")
         .def(
             "append",
@@ -344,31 +358,37 @@ PYBIND11_MODULE(_rbscan, m) {
         .def(
             "series",
             [](rs::NodeWriter& n, const std::string& name, const py::object& dims,
-               const std::string& compression, int level, std::size_t chunk_bytes) {
+               const std::string& compression, int level, std::size_t chunk_bytes,
+               const py::object& dtypes) {
                 rs::InlineOptions o;
                 o.compression = compression_options(compression, level);
                 o.chunk_bytes = chunk_bytes;
+                o.dtypes = to_field_types(dtypes);
                 return n.series(name, to_dims(dims), o);
             },
             py::arg("name"), py::arg("dims") = py::none(),
             py::arg("compression") = "shuffle_deflate", py::arg("level") = 1,
-            py::arg("chunk_bytes") = 256 * 1024, "Writer of an inline series (master file).")
+            py::arg("chunk_bytes") = 256 * 1024, py::arg("dtypes") = py::none(),
+            "Writer of an inline series (master file); dtypes picks another allowed type "
+            "per field.")
         .def(
             "segmented_series",
             [](rs::NodeWriter& n, const std::string& name, const py::object& dims,
                std::uint64_t segment_size, const std::string& compression, int level,
                unsigned threads, std::size_t max_pending, std::size_t chunk_bytes, bool swmr,
-               std::uint64_t flush_every) {
+               std::uint64_t flush_every, const py::object& dtypes) {
                 return n.segmented_series(
                     name, to_dims(dims),
                     segment_options(segment_size, compression, level, threads, max_pending,
-                                    chunk_bytes, swmr, flush_every));
+                                    chunk_bytes, swmr, flush_every, dtypes));
             },
             py::arg("name"), py::arg("dims") = py::none(), py::arg("segment_size") = 500,
             py::arg("compression") = "shuffle_deflate", py::arg("level") = 1,
             py::arg("threads") = 0, py::arg("max_pending") = 64,
             py::arg("chunk_bytes") = 1 << 20, py::arg("swmr") = true,
-            py::arg("flush_every") = 16, "Writer of a segmented series (segment files).");
+            py::arg("flush_every") = 16, py::arg("dtypes") = py::none(),
+            "Writer of a segmented series (segment files); dtypes picks another allowed type "
+            "per field, e.g. {'image': 'float32'}.");
 
     py::class_<rs::ScanWriter>(m, "ScanWriter")
         .def_static(
@@ -396,7 +416,11 @@ PYBIND11_MODULE(_rbscan, m) {
             },
             py::arg("name"), py::arg("schema"), py::arg("attributes") = py::none(),
             "Adds a node (sensor, robot, frame, ...); attributes as dict and/or keywords.")
+        .def_static("open", &rs::ScanWriter::open, py::arg("scan_dir"),
+                    "Opens an existing scan to add or replace nodes.")
         .def("node", &rs::ScanWriter::node, py::arg("path"))
+        .def("has_node", &rs::ScanWriter::has_node, py::arg("path"))
+        .def("remove_node", &rs::ScanWriter::remove_node, py::arg("path"))
         .def("flush", &rs::ScanWriter::flush, py::call_guard<py::gil_scoped_release>())
         .def("finalize", &rs::ScanWriter::finalize, py::call_guard<py::gil_scoped_release>())
         .def_property_readonly("directory", &rs::ScanWriter::directory)
@@ -499,6 +523,123 @@ PYBIND11_MODULE(_rbscan, m) {
         .def("__repr__", [](const rs::NodeReader& n) {
             return "<rbscan.NodeReader " + n.path() + " (" + n.schema().id() + ")>";
         });
+
+    // --- tools -------------------------------------------------------------
+    auto json_loads = [](const std::string& text) {
+        return py::module_::import("json").attr("loads")(text);
+    };
+    m.def(
+        "info",
+        [json_loads](const std::filesystem::path& scan) {
+            std::string text;
+            {
+                py::gil_scoped_release release;
+                text = rs::to_json(rs::summarize(scan));
+            }
+            return json_loads(text);
+        },
+        py::arg("scan"), "Overview of a scan as a dict (nodes, series, samples, rates, sizes).");
+    m.def(
+        "info_text",
+        [](const std::filesystem::path& scan, bool attributes) {
+            return rs::to_text(rs::summarize(scan), attributes);
+        },
+        py::arg("scan"), py::arg("attributes") = false, py::call_guard<py::gil_scoped_release>(),
+        "Overview of a scan as printable text.");
+    m.def(
+        "validate",
+        [json_loads](const std::filesystem::path& scan, bool check_values, double tolerance) {
+            rs::ValidateOptions o;
+            o.check_values = check_values;
+            o.time_tolerance_s = tolerance;
+            std::string text;
+            {
+                py::gil_scoped_release release;
+                text = rs::to_json(rs::validate(scan, o));
+            }
+            return json_loads(text);
+        },
+        py::arg("scan"), py::arg("check_values") = true, py::arg("time_tolerance_s") = 1e-3,
+        "Checks a scan; returns {'ok', 'errors', 'warnings', 'issues': [...]}.");
+    m.def(
+        "validate_text",
+        [](const std::filesystem::path& scan, bool check_values, double tolerance) {
+            rs::ValidateOptions o;
+            o.check_values = check_values;
+            o.time_tolerance_s = tolerance;
+            const auto r = rs::validate(scan, o);
+            return std::make_pair(rs::to_text(r), r.ok());
+        },
+        py::arg("scan"), py::arg("check_values") = true, py::arg("time_tolerance_s") = 1e-3,
+        py::call_guard<py::gil_scoped_release>(), "(report text, ok)");
+    m.def(
+        "resolve_geometry",
+        [](const std::filesystem::path& scan, const std::string& acquisition,
+           const std::string& source, const std::string& detector, const std::string& world_frame,
+           const std::string& source_frame, const std::string& detector_frame,
+           bool projection_matrix, bool overwrite) {
+            rs::GeometryOptions o;
+            o.acquisition = acquisition;
+            o.source = source;
+            o.detector = detector;
+            o.world_frame = world_frame;
+            o.source_frame = source_frame;
+            o.detector_frame = detector_frame;
+            o.projection_matrix = projection_matrix;
+            o.overwrite = overwrite;
+            rs::GeometryResult r;
+            {
+                py::gil_scoped_release release;
+                r = rs::resolve_geometry(scan, o);
+            }
+            py::dict out;
+            out["acquisition"] = r.acquisition;
+            out["projections"] = r.projections;
+            out["interpolated"] = r.interpolated;
+            out["extrapolated"] = r.extrapolated;
+            out["robot_unreachable"] = r.robot_unreachable;
+            out["emission_unstable"] = r.emission_unstable;
+            return out;
+        },
+        py::arg("scan"), py::arg("acquisition") = "scan_0", py::arg("source") = "",
+        py::arg("detector") = "", py::arg("world_frame") = "world", py::arg("source_frame") = "",
+        py::arg("detector_frame") = "", py::arg("projection_matrix") = true,
+        py::arg("overwrite") = false,
+        "Writes acquisitions/<acquisition>/projections from the frames, the detector's image "
+        "times and pixel pitch and the source state.");
+    m.def(
+        "projection_matrix",
+        [](const std::array<double, 3>& s, const std::array<double, 3>& d,
+           const std::array<double, 3>& u, const std::array<double, 3>& v, double pu, double pv,
+           std::uint64_t width, std::uint64_t height) {
+            const auto pm = rs::projection_matrix(s, d, u, v, pu, pv, width, height);
+            py::array_t<double> out({3, 4});
+            std::copy(pm.begin(), pm.end(), out.mutable_data());
+            return out;
+        },
+        py::arg("source_position"), py::arg("detector_position"), py::arg("detector_u"),
+        py::arg("detector_v"), py::arg("pixel_u"), py::arg("pixel_v"), py::arg("width"),
+        py::arg("height"), "3x4 matrix: world point (m) -> (column, row), homogeneous.");
+
+    py::class_<rs::FrameGraph>(m, "FrameGraph")
+        .def(py::init([](const std::filesystem::path& scan) { return rs::FrameGraph::load(scan); }),
+             py::arg("scan"), "The TF tree stored under frames/.")
+        .def(
+            "lookup",
+            [](const rs::FrameGraph& g, const std::string& parent, const std::string& child,
+               std::int64_t t) {
+                bool extrapolated = false;
+                const rs::Pose p = g.lookup(parent, child, t, &extrapolated);
+                py::array_t<double> tr(3);
+                py::array_t<double> rot(4);
+                std::copy(p.translation.begin(), p.translation.end(), tr.mutable_data());
+                std::copy(p.rotation.begin(), p.rotation.end(), rot.mutable_data());
+                return py::make_tuple(tr, rot, extrapolated);
+            },
+            py::arg("parent"), py::arg("child"), py::arg("time_ns"),
+            "Pose of child in parent at time_ns: (translation, quaternion xyzw, extrapolated).")
+        .def("has_frame", &rs::FrameGraph::has_frame)
+        .def_property_readonly("frames", &rs::FrameGraph::frames);
 
     py::class_<rs::ScanReader>(m, "ScanReader")
         .def(py::init([](const std::filesystem::path& p) { return rs::ScanReader::open(p); }),

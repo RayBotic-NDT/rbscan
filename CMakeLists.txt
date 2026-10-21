@@ -18,6 +18,8 @@ endif()
 option(RBSCAN_BUILD_TESTS "Build the C++ unit tests" ${PROJECT_IS_TOP_LEVEL})
 option(RBSCAN_BUILD_PYTHON "Build the Python extension module" ${PROJECT_IS_TOP_LEVEL})
 option(RBSCAN_BUILD_EXAMPLES "Build the C++ examples" ${PROJECT_IS_TOP_LEVEL})
+option(RBSCAN_BUILD_TOOLS "Build the rbscan command line tool" ON)
+option(RBSCAN_INSTALL "Generate install rules (off when used as a subproject)" ${PROJECT_IS_TOP_LEVEL})
 option(RBSCAN_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # Everything lands next to each other, so rbscan.dll / hdf5.dll are found by
@@ -31,6 +33,10 @@ include(rbscan_deps)
 include(rbscan_embed_schemas)
 
 add_subdirectory(src)
+
+if(RBSCAN_BUILD_TOOLS)
+    add_subdirectory(tools)
+endif()
 
 if(RBSCAN_BUILD_PYTHON)
     add_subdirectory(python)

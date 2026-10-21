@@ -11,7 +11,8 @@ FetchContent_MakeAvailable(googletest)
 add_executable(rbscan_tests
     schema_test.cpp
     scan_test.cpp
-    segmented_test.cpp)
+    segmented_test.cpp
+    tools_test.cpp)
 target_link_libraries(rbscan_tests PRIVATE rbscan::rbscan GTest::gtest_main rbscan::warnings)
 
 include(GoogleTest)
@@ -21,5 +22,5 @@ if(RBSCAN_BUILD_PYTHON)
     add_test(NAME python_tests
         COMMAND ${Python_EXECUTABLE} -m pytest -q "${PROJECT_SOURCE_DIR}/python/tests")
     set_tests_properties(python_tests PROPERTIES
-        ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python/$<CONFIG>")
+        ENVIRONMENT "RBSCAN_TEST_PACKAGE_DIR=${CMAKE_BINARY_DIR}/python/$<CONFIG>")
 endif()

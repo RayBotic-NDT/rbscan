@@ -38,11 +38,21 @@ struct DimSpec {
 /// fields left out are filled with NaN / 0 / false).
 struct FieldSpec {
     std::string name;
+    /// The default type; `dtypes` lists every allowed one (dtype first). A
+    /// writer picks another allowed type per series (FieldTypes).
     DType dtype{DType::Float64};
+    std::vector<DType> dtypes;
     std::vector<DimSpec> shape;  ///< empty = scalar
     bool optional{false};
     std::string units;
     std::string description;
+
+    [[nodiscard]] bool allows(DType t) const {
+        for (auto d : dtypes) {
+            if (d == t) return true;
+        }
+        return t == dtype;
+    }
 };
 
 enum class Storage {

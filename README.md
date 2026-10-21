@@ -35,6 +35,9 @@ part_42/
   it is running (`SeriesReader::open_segments`).
 - After a crash, or when other processes finished later,
   `ScanWriter::rebuild(dir)` relinks everything it finds on disk.
+- `ScanWriter::open(dir)` adds or replaces nodes in an existing scan later
+  (annotations, results); `remove_node()` drops one. The viewer stores its
+  markers that way.
 
 The full description is in [docs/format.md](docs/format.md).
 
@@ -52,11 +55,49 @@ The full description is in [docs/format.md](docs/format.md).
 | `raybotic.robot_arm` | robots | `joint_states`, `tracking` |
 | `raybotic.transform` | frames | `pose` (one TF edge) |
 | `raybotic.ct_acquisition` | acquisitions | `scan_poses`, `projections` (resolved geometry per projection) |
+| `raybotic.annotations` | annotations | `markers`, `observations` (+ the viewer's full document) |
+| `raybotic.ezrt_import` | imports | `headers` (original EZRT headers, for a lossless way back) |
 
 A new sensor is a new JSON file. It extends `raybotic.sensor/1` and declares
 its attributes and series. Register it at runtime (`register_schema`), or put it
 in a directory listed in `RBSCAN_SCHEMA_PATH`, or add it to `schemas/` and it is
 compiled in. Files carry their schemas, so readers do not need the registry.
+
+## Tools
+
+The same commands come as `rbscan.exe` (C++, built with the library) and as
+`rbscan` / `python -m rbscan` from the Python package:
+
+```bash
+rbscan info D:/scans/part_42                 # nodes, series, samples, time span, rate, size
+rbscan validate D:/scans/part_42             # exit code 1 on errors; --json for CI
+rbscan resolve-geometry D:/scans/part_42     # projection table from the recorded frames
+rbscan rebuild D:/scans/part_42              # relink segments after a crash
+rbscan schemas [raybotic.xray_detector]
+```
+
+- **info**: overview per node and series: storage, samples, duration, rate,
+  segments, raw size vs. size on disk; `--json` for scripts, `--attributes`
+  for every node attribute.
+- **validate**: checks the scan against its schemas (required attributes and
+  their types, fields, dtypes, shapes, named dimensions), equal field lengths,
+  time order, the segment sequence and the virtual dataset links, references
+  between nodes (`source`/`detector`, `image_index`, time of projection vs.
+  image) and values of small fields (NaN in required fields, unit quaternions,
+  unit and orthogonal detector axes, projections flagged invalid). Images are
+  never read.
+- **resolve-geometry**: writes `acquisitions/<name>/projections` from the TF
+  frames under `frames/` (interpolated to each image's time: linear for
+  translations, slerp for rotations), the detector's pixel pitch and binning
+  and the source state. One row per image: source and detector position,
+  detector axes, pixel size, projection matrix, kV, µA, integration time and
+  flags (bit 0: outside the recorded frames, bit 1: interpolated, bit 2: robot
+  unreachable, bit 3: emission not on).
+
+In code: `rs::summarize`, `rs::validate`, `rs::resolve_geometry`,
+`rs::FrameGraph` (TF lookups on a scan) and `rs::projection_matrix`, plus
+`rbscan.info`, `rbscan.validate`, `rbscan.resolve_geometry` and
+`rbscan.FrameGraph` in Python.
 
 ## C++
 

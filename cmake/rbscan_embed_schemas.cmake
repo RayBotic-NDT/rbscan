@@ -8,6 +8,8 @@
 function(rbscan_embed_schemas out_cpp schema_dir)
     file(GLOB _files CONFIGURE_DEPENDS "${schema_dir}/*.json")
     list(SORT _files)
+    # Re-run when a schema's content changes, not only when files come or go.
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_files})
 
     set(_body "")
     foreach(_file IN LISTS _files)

@@ -40,7 +40,7 @@
         "projection_matrix": { "dtype": "float64", "shape": [3, 4], "optional": true, "description": "World point (m) to pixel (column, row)." },
         "voltage_kv": { "dtype": "float64", "units": "kV" },
         "current_ua": { "dtype": "float64", "units": "uA" },
-        "integration_time_ms": { "dtype": "float64", "units": "ms" },
+        "integration_time_ms": { "dtype": "float64", "units": "ms", "optional": true },
         "flags": {
           "dtype": "uint32",
           "description": "Bit 0 invalid, bit 1 geometry interpolated, bit 2 robot unreachable, bit 3 emission unstable."

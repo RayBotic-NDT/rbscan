@@ -5,6 +5,7 @@
 
 #include "raybotic/scan/reader.hpp"
 #include "raybotic/scan/schema.hpp"
+#include "raybotic/scan/tools.hpp"
 #include "raybotic/scan/types.hpp"
 #include "raybotic/scan/writer.hpp"
 

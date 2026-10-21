@@ -56,8 +56,20 @@ FieldSpec parse_field(const std::string& name, const Json& j) {
     if (!j.is_object()) throw Error("field '" + name + "' must be an object");
     FieldSpec f;
     f.name = name;
-    f.dtype = dtype_from_string(str(j, "dtype"));
-    if (f.dtype == DType::String) throw Error("field '" + name + "': strings are attributes only");
+    // "dtype": "uint16" or a list of allowed types, the first being the default.
+    if (j.contains("dtype") && j["dtype"].is_array()) {
+        for (const auto& d : j["dtype"]) {
+            if (!d.is_string()) throw Error("field '" + name + "': dtype list must hold names");
+            f.dtypes.push_back(dtype_from_string(d.get<std::string>()));
+        }
+        if (f.dtypes.empty()) throw Error("field '" + name + "': empty dtype list");
+    } else {
+        f.dtypes.push_back(dtype_from_string(str(j, "dtype")));
+    }
+    f.dtype = f.dtypes.front();
+    for (auto d : f.dtypes) {
+        if (d == DType::String) throw Error("field '" + name + "': strings are attributes only");
+    }
     if (j.contains("shape")) {
         if (!j["shape"].is_array()) throw Error("field '" + name + "': shape must be a list");
         for (const auto& d : j["shape"]) {
@@ -238,7 +250,13 @@ std::string Schema::to_json() const {
         Json fields = Json::object();
         for (const auto& f : s.fields) {
             Json jf;
-            jf["dtype"] = std::string(to_string(f.dtype));
+            if (f.dtypes.size() > 1) {
+                Json list = Json::array();
+                for (auto d : f.dtypes) list.push_back(std::string(to_string(d)));
+                jf["dtype"] = list;
+            } else {
+                jf["dtype"] = std::string(to_string(f.dtype));
+            }
             if (!f.shape.empty()) {
                 Json shape = Json::array();
                 for (const auto& d : f.shape) {

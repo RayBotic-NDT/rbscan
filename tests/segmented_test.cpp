@@ -209,3 +209,25 @@ TEST(Segmented, RefusesMixingRecordingsAndMissingDims) {
                                                  {{"height", H}, {"width", W}}),
                  rs::Error);  // segments of another recording exist
 }
+
+TEST(Segmented, FloatProjectionsWhenTheSchemaAllowsThem) {
+    TempDir dir;
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto det = scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
+        rs::SegmentOptions opt;
+        opt.dtypes = {{"image", rs::DType::Int32}};
+        EXPECT_THROW((void)det.segmented_series("image", {{"height", H}, {"width", W}}, opt),
+                     rs::Error);  // not allowed for detector images
+        opt.dtypes = {{"image", rs::DType::Float32}};
+        auto images = det.segmented_series("image", {{"height", H}, {"width", W}}, opt);
+        std::vector<float> img(H * W, 0.25f);
+        img[7] = -1.5f;  // corrected data can be negative
+        images.append(0, {{"image", rs::view(img.data(), {H, W})}});
+    }
+    const auto scan = rs::ScanReader::open(dir.path());
+    const auto images = scan.node("sensors/detector_0").series("image");
+    EXPECT_EQ(images.dtype("image"), rs::DType::Float32);
+    EXPECT_FLOAT_EQ(images.read_sample("image", 0).values<float>()[7], -1.5f);
+    EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
+}

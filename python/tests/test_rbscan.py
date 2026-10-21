@@ -209,3 +209,38 @@ def test_custom_schema(tmp_path):
     s = rbscan.ScanReader(tmp_path)["sensors/thermo"]["thermal"]
     assert s.units("temperature") == "K"
     assert s.read_sample("temperature", 0)[2, 3] == pytest.approx(293.15)
+
+
+def test_float_projections_and_volume(tmp_path):
+    with rbscan.ScanWriter.create(tmp_path) as scan:
+        det = scan.add_node("detector_0", "raybotic.xray_detector", DETECTOR)
+        images = det.segmented_series("image", dims={"height": H, "width": W},
+                                      dtypes={"image": np.float32})
+        images.append(0, image=np.linspace(-1, 1, H * W, dtype=np.float32).reshape(H, W))
+        vol = np.random.default_rng(1).random((5, 6, 7), dtype=np.float32)
+        a = np.diag([1e-4, 2e-4, 3e-4, 1.0])
+        a[:3, 3] = [0.01, -0.02, 0.03]
+        rbscan.write_volume(scan, "reco", vol, a, quantity="attenuation", value_units="1/m",
+                            segment_size=2)
+        with pytest.raises(rbscan.Error, match="cannot be int32"):
+            det.series("calibration", dims={"height": H, "width": W},
+                       dtypes={"dark": "int32"})
+    reader = rbscan.ScanReader(tmp_path)
+    img = reader["sensors/detector_0"]["image"].read_sample("image", 0)
+    assert img.dtype == np.float32 and img.min() == -1.0
+    back, affine = rbscan.read_volume(reader, "volumes/reco")
+    np.testing.assert_array_equal(back, vol)
+    np.testing.assert_allclose(affine, a)
+    node = reader["volumes/reco"]
+    assert node.attributes["voxel_size"] == pytest.approx([1e-4, 2e-4, 3e-4])
+    assert node["slices"].storage == "segmented"
+    assert rbscan.validate(tmp_path)["ok"]
+
+    del node, reader  # the master must be closed before it is written again
+
+    # Volumes added to an existing scan later.
+    scan = rbscan.ScanWriter.open(tmp_path)
+    rbscan.write_volume(scan, "labels", (vol > 0.5).astype(np.uint8), a)
+    scan.finalize()
+    labels, _ = rbscan.read_volume(tmp_path, "volumes/labels")
+    assert labels.dtype == np.uint8 and labels.sum() == (vol > 0.5).sum()
