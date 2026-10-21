@@ -15,8 +15,10 @@ namespace {
 void validate_node_path(std::string_view path) {
     const auto slash = path.find('/');
     if (slash == std::string_view::npos || slash == 0 || slash + 1 >= path.size() ||
-        path.find('/', slash + 1) != std::string_view::npos || path.find("..") != path.npos) {
-        throw Error("node path must be <category>/<name>, got '" + std::string(path) + "'");
+        path.find('/', slash + 1) != std::string_view::npos ||
+        path.find("..") != path.npos) {
+        throw Error("node path must be <category>/<name>, got '" + std::string(path) +
+                    "'");
     }
 }
 
@@ -43,7 +45,8 @@ SegmentedSeriesWriter::Impl::Impl(fs::path scan_dir_, std::string node_path_,
                                         options.segment_size, options.dtypes);
     series_dir = scan_dir / fs::path(node_path) / series;
     if (!detail::list_segments(series_dir).empty()) {
-        throw Error(detail::utf8(series_dir) + " already holds segments of another recording");
+        throw Error(detail::utf8(series_dir) +
+                    " already holds segments of another recording");
     }
     buffers.resize(layout.fields.size());
 
@@ -62,7 +65,8 @@ SegmentedSeriesWriter::Impl::~Impl() {
     }
 }
 
-void SegmentedSeriesWriter::Impl::append(std::int64_t time_ns, std::span<const FieldValue> fields) {
+void SegmentedSeriesWriter::Impl::append(std::int64_t time_ns,
+                                         std::span<const FieldValue> fields) {
     std::scoped_lock lock(append_mutex);
     if (closed) throw Error("segmented series '" + layout.spec.name + "' is closed");
     rethrow_error();
@@ -72,7 +76,8 @@ void SegmentedSeriesWriter::Impl::append(std::int64_t time_ns, std::span<const F
 
     const auto n = layout.fields.size();
     std::vector<std::uint64_t> slots(n);
-    for (std::size_t i = 0; i < n; ++i) slots[i] = in_segment % layout.fields[i].chunk_samples;
+    for (std::size_t i = 0; i < n; ++i)
+        slots[i] = in_segment % layout.fields[i].chunk_samples;
     detail::stage_sample(layout, buffers, slots, time_ns, fields);
     last_time = time_ns;
     ++in_segment;
@@ -80,7 +85,8 @@ void SegmentedSeriesWriter::Impl::append(std::int64_t time_ns, std::span<const F
 
     for (std::size_t i = 0; i < n; ++i) {
         const auto cs = layout.fields[i].chunk_samples;
-        if (in_segment % cs == 0) submit_chunk(i, (in_segment - 1) / cs, cs, std::move(buffers[i]));
+        if (in_segment % cs == 0)
+            submit_chunk(i, (in_segment - 1) / cs, cs, std::move(buffers[i]));
     }
     if (in_segment == options.segment_size) {
         submit_partials(false);
@@ -137,11 +143,13 @@ void SegmentedSeriesWriter::Impl::close() {
     rethrow_error();
 }
 
-void SegmentedSeriesWriter::Impl::submit_chunk(std::size_t field, std::uint64_t chunk_index,
+void SegmentedSeriesWriter::Impl::submit_chunk(std::size_t field,
+                                               std::uint64_t chunk_index,
                                                std::uint64_t valid, ChunkBuffer buffer) {
     {
         std::unique_lock lock(queue_mutex);
-        space_cv.wait(lock, [&] { return pending_chunks < options.max_pending || error; });
+        space_cv.wait(lock,
+                      [&] { return pending_chunks < options.max_pending || error; });
         if (error) std::rethrow_exception(error);
         ++pending_chunks;
     }
@@ -229,7 +237,8 @@ void SegmentedSeriesWriter::Impl::run_writer() {
                     }
                     const auto& f = layout.fields[job.field];
                     detail::write_chunk(datasets[job.field].get(), f, job.chunk_index,
-                                        job.chunk_index * f.chunk_samples + job.valid, encoded);
+                                        job.chunk_index * f.chunk_samples + job.valid,
+                                        encoded);
                     break;
                 }
                 case Job::Kind::Flush:
@@ -267,7 +276,8 @@ void SegmentedSeriesWriter::Impl::run_writer() {
 void SegmentedSeriesWriter::Impl::open_segment_file(std::uint64_t index) {
     fs::create_directories(series_dir);
     h5::Lock lock(h5::mutex());
-    file = h5::create_file(detail::utf8(detail::segment_path(series_dir, index)), false, true);
+    file = h5::create_file(detail::utf8(detail::segment_path(series_dir, index)), false,
+                           true);
     const hid_t f = file.get();
     h5::write_string_attribute(f, "format", detail::segment_format_name);
     h5::write_string_attribute(f, "format_version", format_version);
@@ -280,7 +290,8 @@ void SegmentedSeriesWriter::Impl::open_segment_file(std::uint64_t index) {
     h5::write_attribute(f, "first_sample",
                         Value(static_cast<std::int64_t>(index * options.segment_size)),
                         DType::UInt64);
-    h5::write_attribute(f, "segment_size", Value(static_cast<std::int64_t>(options.segment_size)),
+    h5::write_attribute(f, "segment_size",
+                        Value(static_cast<std::int64_t>(options.segment_size)),
                         DType::UInt64);
     {
         h5::Id g = h5::ensure_group(f, detail::segment_node_group);
@@ -306,19 +317,18 @@ void SegmentedSeriesWriter::Impl::close_segment_file() {
 SegmentedSeriesWriter::SegmentedSeriesWriter(std::shared_ptr<Impl> impl)
     : impl_(std::move(impl)) {}
 
-SegmentedSeriesWriter SegmentedSeriesWriter::open(const fs::path& scan_dir,
-                                                  std::string_view node_path,
-                                                  std::string_view schema_id,
-                                                  std::string_view series, const Dims& dims,
-                                                  const SegmentOptions& options,
-                                                  const Attributes& attributes) {
+SegmentedSeriesWriter SegmentedSeriesWriter::open(
+    const fs::path& scan_dir, std::string_view node_path, std::string_view schema_id,
+    std::string_view series, const Dims& dims, const SegmentOptions& options,
+    const Attributes& attributes) {
     const Schema& schema = SchemaRegistry::global().get(schema_id);
-    return SegmentedSeriesWriter(std::make_shared<Impl>(scan_dir, std::string(node_path), schema,
-                                                        std::string(series), dims, options,
-                                                        attributes));
+    return SegmentedSeriesWriter(std::make_shared<Impl>(scan_dir, std::string(node_path),
+                                                        schema, std::string(series), dims,
+                                                        options, attributes));
 }
 
-void SegmentedSeriesWriter::append(std::int64_t time_ns, std::span<const FieldValue> fields) {
+void SegmentedSeriesWriter::append(std::int64_t time_ns,
+                                   std::span<const FieldValue> fields) {
     impl_->append(time_ns, fields);
 }
 

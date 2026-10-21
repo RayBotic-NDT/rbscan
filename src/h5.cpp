@@ -1,10 +1,10 @@
 #include "h5.hpp"
 
-#include "compression.hpp"
-
 #include <cmath>
 #include <limits>
 #include <type_traits>
+
+#include "compression.hpp"
 
 namespace raybotic::scan::h5 {
 
@@ -83,17 +83,33 @@ void check_integer_range(DType d, std::int64_t v, const std::string& name) {
                     std::string(to_string(d)));
     };
     auto in = [&](auto lo, auto hi) {
-        if (v < static_cast<std::int64_t>(lo) || v > static_cast<std::int64_t>(hi)) fail();
+        if (v < static_cast<std::int64_t>(lo) || v > static_cast<std::int64_t>(hi))
+            fail();
     };
     switch (d) {
-        case DType::Int8: in(INT8_MIN, INT8_MAX); break;
-        case DType::UInt8: in(0, UINT8_MAX); break;
-        case DType::Int16: in(INT16_MIN, INT16_MAX); break;
-        case DType::UInt16: in(0, UINT16_MAX); break;
-        case DType::Int32: in(INT32_MIN, INT32_MAX); break;
-        case DType::UInt32: in(0, UINT32_MAX); break;
-        case DType::UInt64: if (v < 0) fail(); break;
-        default: break;
+        case DType::Int8:
+            in(INT8_MIN, INT8_MAX);
+            break;
+        case DType::UInt8:
+            in(0, UINT8_MAX);
+            break;
+        case DType::Int16:
+            in(INT16_MIN, INT16_MAX);
+            break;
+        case DType::UInt16:
+            in(0, UINT16_MAX);
+            break;
+        case DType::Int32:
+            in(INT32_MIN, INT32_MAX);
+            break;
+        case DType::UInt32:
+            in(0, UINT32_MAX);
+            break;
+        case DType::UInt64:
+            if (v < 0) fail();
+            break;
+        default:
+            break;
     }
 }
 
@@ -140,10 +156,22 @@ Payload make_payload(const std::string& name, const Value& value, std::optional<
     if (!as) {
         p.array = value_is_array;
         switch (kind) {
-            case Kind::Bool: p.dtype = DType::Bool; p.ints = ints; break;
-            case Kind::Int: p.dtype = DType::Int64; p.ints = ints; break;
-            case Kind::Float: p.dtype = DType::Float64; p.floats = floats; break;
-            case Kind::String: p.dtype = DType::String; p.strings = strings; break;
+            case Kind::Bool:
+                p.dtype = DType::Bool;
+                p.ints = ints;
+                break;
+            case Kind::Int:
+                p.dtype = DType::Int64;
+                p.ints = ints;
+                break;
+            case Kind::Float:
+                p.dtype = DType::Float64;
+                p.floats = floats;
+                break;
+            case Kind::String:
+                p.dtype = DType::String;
+                p.strings = strings;
+                break;
         }
         return p;
     }
@@ -151,7 +179,8 @@ Payload make_payload(const std::string& name, const Value& value, std::optional<
     p.dtype = *as;
     p.array = as_array;
     if (value_is_array && !as_array) {
-        throw Error("attribute '" + name + "' must be a scalar " + std::string(to_string(*as)));
+        throw Error("attribute '" + name + "' must be a scalar " +
+                    std::string(to_string(*as)));
     }
     auto mismatch = [&] {
         return Error("attribute '" + name + "' must be " + std::string(to_string(*as)) +
@@ -223,14 +252,30 @@ void Id::reset() {
     if (id_ < 0) return;
     Lock lock(mutex());
     switch (H5Iget_type(id_)) {
-        case H5I_FILE: H5Fclose(id_); break;
-        case H5I_GROUP: H5Gclose(id_); break;
-        case H5I_DATASET: H5Dclose(id_); break;
-        case H5I_DATASPACE: H5Sclose(id_); break;
-        case H5I_DATATYPE: H5Tclose(id_); break;
-        case H5I_ATTR: H5Aclose(id_); break;
-        case H5I_GENPROP_LST: H5Pclose(id_); break;
-        default: H5Idec_ref(id_); break;
+        case H5I_FILE:
+            H5Fclose(id_);
+            break;
+        case H5I_GROUP:
+            H5Gclose(id_);
+            break;
+        case H5I_DATASET:
+            H5Dclose(id_);
+            break;
+        case H5I_DATASPACE:
+            H5Sclose(id_);
+            break;
+        case H5I_DATATYPE:
+            H5Tclose(id_);
+            break;
+        case H5I_ATTR:
+            H5Aclose(id_);
+            break;
+        case H5I_GENPROP_LST:
+            H5Pclose(id_);
+            break;
+        default:
+            H5Idec_ref(id_);
+            break;
     }
     H5Eclear2(H5E_DEFAULT);
     id_ = H5I_INVALID_HID;
@@ -238,36 +283,60 @@ void Id::reset() {
 
 Id file_type(DType dtype) {
     switch (dtype) {
-        case DType::Bool: return bool_type();
-        case DType::Int8: return copy_type(H5T_STD_I8LE);
-        case DType::UInt8: return copy_type(H5T_STD_U8LE);
-        case DType::Int16: return copy_type(H5T_STD_I16LE);
-        case DType::UInt16: return copy_type(H5T_STD_U16LE);
-        case DType::Int32: return copy_type(H5T_STD_I32LE);
-        case DType::UInt32: return copy_type(H5T_STD_U32LE);
-        case DType::Int64: return copy_type(H5T_STD_I64LE);
-        case DType::UInt64: return copy_type(H5T_STD_U64LE);
-        case DType::Float32: return copy_type(H5T_IEEE_F32LE);
-        case DType::Float64: return copy_type(H5T_IEEE_F64LE);
-        case DType::String: return string_type();
+        case DType::Bool:
+            return bool_type();
+        case DType::Int8:
+            return copy_type(H5T_STD_I8LE);
+        case DType::UInt8:
+            return copy_type(H5T_STD_U8LE);
+        case DType::Int16:
+            return copy_type(H5T_STD_I16LE);
+        case DType::UInt16:
+            return copy_type(H5T_STD_U16LE);
+        case DType::Int32:
+            return copy_type(H5T_STD_I32LE);
+        case DType::UInt32:
+            return copy_type(H5T_STD_U32LE);
+        case DType::Int64:
+            return copy_type(H5T_STD_I64LE);
+        case DType::UInt64:
+            return copy_type(H5T_STD_U64LE);
+        case DType::Float32:
+            return copy_type(H5T_IEEE_F32LE);
+        case DType::Float64:
+            return copy_type(H5T_IEEE_F64LE);
+        case DType::String:
+            return string_type();
     }
     throw Error("unknown dtype");
 }
 
 Id memory_type(DType dtype) {
     switch (dtype) {
-        case DType::Bool: return bool_type();
-        case DType::Int8: return copy_type(H5T_NATIVE_INT8);
-        case DType::UInt8: return copy_type(H5T_NATIVE_UINT8);
-        case DType::Int16: return copy_type(H5T_NATIVE_INT16);
-        case DType::UInt16: return copy_type(H5T_NATIVE_UINT16);
-        case DType::Int32: return copy_type(H5T_NATIVE_INT32);
-        case DType::UInt32: return copy_type(H5T_NATIVE_UINT32);
-        case DType::Int64: return copy_type(H5T_NATIVE_INT64);
-        case DType::UInt64: return copy_type(H5T_NATIVE_UINT64);
-        case DType::Float32: return copy_type(H5T_NATIVE_FLOAT);
-        case DType::Float64: return copy_type(H5T_NATIVE_DOUBLE);
-        case DType::String: return string_type();
+        case DType::Bool:
+            return bool_type();
+        case DType::Int8:
+            return copy_type(H5T_NATIVE_INT8);
+        case DType::UInt8:
+            return copy_type(H5T_NATIVE_UINT8);
+        case DType::Int16:
+            return copy_type(H5T_NATIVE_INT16);
+        case DType::UInt16:
+            return copy_type(H5T_NATIVE_UINT16);
+        case DType::Int32:
+            return copy_type(H5T_NATIVE_INT32);
+        case DType::UInt32:
+            return copy_type(H5T_NATIVE_UINT32);
+        case DType::Int64:
+            return copy_type(H5T_NATIVE_INT64);
+        case DType::UInt64:
+            return copy_type(H5T_NATIVE_UINT64);
+        case DType::Float32:
+            return copy_type(H5T_NATIVE_FLOAT);
+        case DType::Float64:
+            return copy_type(H5T_NATIVE_DOUBLE);
+        case DType::String:
+            return string_type();
     }
     throw Error("unknown dtype");
 }
@@ -281,11 +350,16 @@ DType dtype_of(hid_t type) {
         case H5T_INTEGER: {
             const bool is_signed = H5Tget_sign(type) == H5T_SGN_2;
             switch (size) {
-                case 1: return is_signed ? DType::Int8 : DType::UInt8;
-                case 2: return is_signed ? DType::Int16 : DType::UInt16;
-                case 4: return is_signed ? DType::Int32 : DType::UInt32;
-                case 8: return is_signed ? DType::Int64 : DType::UInt64;
-                default: break;
+                case 1:
+                    return is_signed ? DType::Int8 : DType::UInt8;
+                case 2:
+                    return is_signed ? DType::Int16 : DType::UInt16;
+                case 4:
+                    return is_signed ? DType::Int32 : DType::UInt32;
+                case 8:
+                    return is_signed ? DType::Int64 : DType::UInt64;
+                default:
+                    break;
             }
             break;
         }
@@ -293,8 +367,10 @@ DType dtype_of(hid_t type) {
             if (size == 4) return DType::Float32;
             if (size == 8) return DType::Float64;
             break;
-        case H5T_STRING: return DType::String;
-        default: break;
+        case H5T_STRING:
+            return DType::String;
+        default:
+            break;
     }
     throw Error("unsupported HDF5 datatype");
 }
@@ -306,7 +382,8 @@ Id create_file(const std::string& path, bool overwrite, bool /*swmr_capable*/) {
     check(H5Pset_libver_bounds(fapl.get(), H5F_LIBVER_V110, H5F_LIBVER_V110),
           "H5Pset_libver_bounds");
     Id fcpl(check_id(H5Pcreate(H5P_FILE_CREATE), "H5Pcreate"));
-    check(H5Pset_link_creation_order(fcpl.get(), H5P_CRT_ORDER_TRACKED | H5P_CRT_ORDER_INDEXED),
+    check(H5Pset_link_creation_order(fcpl.get(),
+                                     H5P_CRT_ORDER_TRACKED | H5P_CRT_ORDER_INDEXED),
           "H5Pset_link_creation_order");
     const unsigned flags = overwrite ? H5F_ACC_TRUNC : H5F_ACC_EXCL;
     return Id(check_id(H5Fcreate(path.c_str(), flags, fcpl.get(), fapl.get()),
@@ -342,9 +419,11 @@ Id ensure_group(hid_t loc, const std::string& path) {
     Lock lock(mutex());
     if (exists(loc, path)) return open_group(loc, path);
     Id lcpl(check_id(H5Pcreate(H5P_LINK_CREATE), "H5Pcreate"));
-    check(H5Pset_create_intermediate_group(lcpl.get(), 1), "H5Pset_create_intermediate_group");
+    check(H5Pset_create_intermediate_group(lcpl.get(), 1),
+          "H5Pset_create_intermediate_group");
     Id gcpl(check_id(H5Pcreate(H5P_GROUP_CREATE), "H5Pcreate"));
-    check(H5Pset_link_creation_order(gcpl.get(), H5P_CRT_ORDER_TRACKED | H5P_CRT_ORDER_INDEXED),
+    check(H5Pset_link_creation_order(gcpl.get(),
+                                     H5P_CRT_ORDER_TRACKED | H5P_CRT_ORDER_INDEXED),
           "H5Pset_link_creation_order");
     return Id(check_id(H5Gcreate2(loc, path.c_str(), lcpl.get(), gcpl.get(), H5P_DEFAULT),
                        "creating group " + path));
@@ -352,12 +431,14 @@ Id ensure_group(hid_t loc, const std::string& path) {
 
 Id open_group(hid_t loc, const std::string& path) {
     Lock lock(mutex());
-    return Id(check_id(H5Gopen2(loc, path.c_str(), H5P_DEFAULT), "opening group " + path));
+    return Id(
+        check_id(H5Gopen2(loc, path.c_str(), H5P_DEFAULT), "opening group " + path));
 }
 
 Id open_dataset(hid_t loc, const std::string& path) {
     Lock lock(mutex());
-    return Id(check_id(H5Dopen2(loc, path.c_str(), H5P_DEFAULT), "opening dataset " + path));
+    return Id(
+        check_id(H5Dopen2(loc, path.c_str(), H5P_DEFAULT), "opening dataset " + path));
 }
 
 std::vector<std::string> children(hid_t group) {
@@ -391,7 +472,8 @@ void write_attribute(hid_t obj, const std::string& name, const Value& value,
                      std::optional<DType> as, bool as_array) {
     const Payload p = make_payload(name, value, as, as_array);
     Lock lock(mutex());
-    if (H5Aexists(obj, name.c_str()) > 0) check(H5Adelete(obj, name.c_str()), "H5Adelete");
+    if (H5Aexists(obj, name.c_str()) > 0)
+        check(H5Adelete(obj, name.c_str()), "H5Adelete");
     H5Eclear2(H5E_DEFAULT);
 
     const std::size_t n = p.dtype == DType::String ? p.strings.size()
@@ -406,28 +488,31 @@ void write_attribute(hid_t obj, const std::string& name, const Value& value,
         space = Id(check_id(H5Screate(H5S_SCALAR), "H5Screate"));
     }
     Id ftype = file_type(p.dtype);
-    Id attr(check_id(H5Acreate2(obj, name.c_str(), ftype.get(), space.get(), H5P_DEFAULT,
-                                H5P_DEFAULT),
-                     "creating attribute " + name));
+    Id attr(check_id(
+        H5Acreate2(obj, name.c_str(), ftype.get(), space.get(), H5P_DEFAULT, H5P_DEFAULT),
+        "creating attribute " + name));
     if (p.dtype == DType::String) {
         std::vector<const char*> ptrs;
         for (const auto& s : p.strings) ptrs.push_back(s.c_str());
         if (ptrs.empty()) return;
         Id mtype = memory_type(DType::String);
-        check(H5Awrite(attr.get(), mtype.get(), ptrs.data()), "writing attribute " + name);
+        check(H5Awrite(attr.get(), mtype.get(), ptrs.data()),
+              "writing attribute " + name);
     } else if (p.dtype == DType::Bool) {
         std::vector<std::int8_t> bytes;
         for (auto v : p.ints) bytes.push_back(static_cast<std::int8_t>(v));
         if (bytes.empty()) return;
         Id mtype = memory_type(DType::Bool);
-        check(H5Awrite(attr.get(), mtype.get(), bytes.data()), "writing attribute " + name);
+        check(H5Awrite(attr.get(), mtype.get(), bytes.data()),
+              "writing attribute " + name);
     } else if (p.dtype == DType::Float32 || p.dtype == DType::Float64) {
         if (p.floats.empty()) return;
         check(H5Awrite(attr.get(), H5T_NATIVE_DOUBLE, p.floats.data()),
               "writing attribute " + name);
     } else {
         if (p.ints.empty()) return;
-        check(H5Awrite(attr.get(), H5T_NATIVE_INT64, p.ints.data()), "writing attribute " + name);
+        check(H5Awrite(attr.get(), H5T_NATIVE_INT64, p.ints.data()),
+              "writing attribute " + name);
     }
 }
 
@@ -441,7 +526,8 @@ std::optional<Value> read_attribute(hid_t obj, const std::string& name) {
         H5Eclear2(H5E_DEFAULT);
         return std::nullopt;
     }
-    Id attr(check_id(H5Aopen(obj, name.c_str(), H5P_DEFAULT), "opening attribute " + name));
+    Id attr(
+        check_id(H5Aopen(obj, name.c_str(), H5P_DEFAULT), "opening attribute " + name));
     Id type(check_id(H5Aget_type(attr.get()), "H5Aget_type"));
     Id space(check_id(H5Aget_space(attr.get()), "H5Aget_space"));
     const int rank = H5Sget_simple_extent_ndims(space.get());
@@ -461,7 +547,8 @@ std::optional<Value> read_attribute(hid_t obj, const std::string& name) {
             std::vector<char*> ptrs(n, nullptr);
             Id mtype = memory_type(DType::String);
             if (n > 0) {
-                check(H5Aread(attr.get(), mtype.get(), ptrs.data()), "reading attribute " + name);
+                check(H5Aread(attr.get(), mtype.get(), ptrs.data()),
+                      "reading attribute " + name);
             }
             for (char* p : ptrs) strings.emplace_back(p != nullptr ? p : "");
             if (n > 0) H5Treclaim(mtype.get(), space.get(), H5P_DEFAULT, ptrs.data());
@@ -469,7 +556,8 @@ std::optional<Value> read_attribute(hid_t obj, const std::string& name) {
             const std::size_t len = H5Tget_size(type.get());
             std::vector<char> buf(len * n);
             if (n > 0) {
-                check(H5Aread(attr.get(), type.get(), buf.data()), "reading attribute " + name);
+                check(H5Aread(attr.get(), type.get(), buf.data()),
+                      "reading attribute " + name);
             }
             for (std::size_t i = 0; i < n; ++i) {
                 std::string s(buf.data() + i * len, len);
@@ -483,7 +571,8 @@ std::optional<Value> read_attribute(hid_t obj, const std::string& name) {
     }
     if (dtype == DType::Float32 || dtype == DType::Float64) {
         std::vector<double> v(n);
-        if (n > 0) check(H5Aread(attr.get(), H5T_NATIVE_DOUBLE, v.data()), "reading " + name);
+        if (n > 0)
+            check(H5Aread(attr.get(), H5T_NATIVE_DOUBLE, v.data()), "reading " + name);
         if (array) return Value(std::move(v));
         return Value(v.empty() ? 0.0 : v.front());
     }

@@ -60,7 +60,8 @@ SegmentSet inspect(const std::vector<fs::path>& files) {
             if (!h5::is_group(f.get(), child)) names.push_back(child);
         }
         if (set.segments.empty()) {
-            set.schema_json = h5::read_string_attribute(f.get(), "schema_json").value_or("");
+            set.schema_json =
+                h5::read_string_attribute(f.get(), "schema_json").value_or("");
             if (h5::exists(f.get(), segment_node_group)) {
                 h5::Id g = h5::open_group(f.get(), segment_node_group);
                 set.node_attributes = h5::read_attributes(g.get());
@@ -93,21 +94,25 @@ void link_series(hid_t master, const fs::path& scan_dir, const std::string& grou
                  const SegmentSet& set) {
     h5::Lock lock(h5::mutex());
     if (h5::exists(master, group_path)) {
-        h5::check(H5Ldelete(master, group_path.c_str(), H5P_DEFAULT), "H5Ldelete " + group_path);
+        h5::check(H5Ldelete(master, group_path.c_str(), H5P_DEFAULT),
+                  "H5Ldelete " + group_path);
     }
     h5::Id group = h5::ensure_group(master, group_path);
     std::uint64_t total = 0;
     for (const auto& s : set.segments) total += s.samples;
     h5::write_string_attribute(group.get(), "storage", "segmented");
     h5::write_attribute(group.get(), "segment_count",
-                        Value(static_cast<std::int64_t>(set.segments.size())), DType::UInt64);
+                        Value(static_cast<std::int64_t>(set.segments.size())),
+                        DType::UInt64);
 
     for (const auto& sd : set.datasets) {
         const int rank = static_cast<int>(sd.sample_shape.size()) + 1;
         std::vector<hsize_t> dims(static_cast<std::size_t>(rank));
         dims[0] = total;
-        for (std::size_t i = 0; i < sd.sample_shape.size(); ++i) dims[i + 1] = sd.sample_shape[i];
-        h5::Id vspace(h5::check_id(H5Screate_simple(rank, dims.data(), nullptr), "H5Screate"));
+        for (std::size_t i = 0; i < sd.sample_shape.size(); ++i)
+            dims[i + 1] = sd.sample_shape[i];
+        h5::Id vspace(
+            h5::check_id(H5Screate_simple(rank, dims.data(), nullptr), "H5Screate"));
         h5::Id dcpl(h5::check_id(H5Pcreate(H5P_DATASET_CREATE), "H5Pcreate"));
 
         std::uint64_t offset = 0;
@@ -117,8 +122,8 @@ void link_series(hid_t master, const fs::path& scan_dir, const std::string& grou
             std::vector<hsize_t> count(dims);
             start[0] = offset;
             count[0] = seg.samples;
-            h5::check(H5Sselect_hyperslab(vspace.get(), H5S_SELECT_SET, start.data(), nullptr,
-                                          count.data(), nullptr),
+            h5::check(H5Sselect_hyperslab(vspace.get(), H5S_SELECT_SET, start.data(),
+                                          nullptr, count.data(), nullptr),
                       "H5Sselect_hyperslab");
             h5::Id src_space(
                 h5::check_id(H5Screate_simple(rank, count.data(), nullptr), "H5Screate"));
@@ -132,11 +137,13 @@ void link_series(hid_t master, const fs::path& scan_dir, const std::string& grou
         }
         h5::check(H5Sselect_all(vspace.get()), "H5Sselect_all");
         h5::Id type = h5::file_type(sd.dtype);
-        h5::Id dset(h5::check_id(H5Dcreate2(group.get(), sd.name.c_str(), type.get(),
-                                            vspace.get(), H5P_DEFAULT, dcpl.get(), H5P_DEFAULT),
-                                 "creating virtual dataset " + sd.name));
+        h5::Id dset(
+            h5::check_id(H5Dcreate2(group.get(), sd.name.c_str(), type.get(),
+                                    vspace.get(), H5P_DEFAULT, dcpl.get(), H5P_DEFAULT),
+                         "creating virtual dataset " + sd.name));
         if (sd.units) h5::write_string_attribute(dset.get(), "units", *sd.units);
-        if (sd.description) h5::write_string_attribute(dset.get(), "description", *sd.description);
+        if (sd.description)
+            h5::write_string_attribute(dset.get(), "description", *sd.description);
     }
 }
 
@@ -159,7 +166,8 @@ void link_all_segments(hid_t master, const fs::path& scan_dir) {
                     const Schema schema = parse_schema(set.schema_json);
                     create_node_group(master, node_path, schema, set.node_attributes);
                 }
-                link_series(master, scan_dir, node_path + "/" + series.filename().string(), set);
+                link_series(master, scan_dir,
+                            node_path + "/" + series.filename().string(), set);
             }
         }
     }

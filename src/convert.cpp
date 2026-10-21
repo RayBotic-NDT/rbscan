@@ -11,18 +11,41 @@ namespace {
 template <class F>
 void dispatch(DType type, F&& f) {
     switch (type) {
-        case DType::Bool: f(bool{}); return;
-        case DType::Int8: f(std::int8_t{}); return;
-        case DType::UInt8: f(std::uint8_t{}); return;
-        case DType::Int16: f(std::int16_t{}); return;
-        case DType::UInt16: f(std::uint16_t{}); return;
-        case DType::Int32: f(std::int32_t{}); return;
-        case DType::UInt32: f(std::uint32_t{}); return;
-        case DType::Int64: f(std::int64_t{}); return;
-        case DType::UInt64: f(std::uint64_t{}); return;
-        case DType::Float32: f(float{}); return;
-        case DType::Float64: f(double{}); return;
-        case DType::String: break;
+        case DType::Bool:
+            f(bool{});
+            return;
+        case DType::Int8:
+            f(std::int8_t{});
+            return;
+        case DType::UInt8:
+            f(std::uint8_t{});
+            return;
+        case DType::Int16:
+            f(std::int16_t{});
+            return;
+        case DType::UInt16:
+            f(std::uint16_t{});
+            return;
+        case DType::Int32:
+            f(std::int32_t{});
+            return;
+        case DType::UInt32:
+            f(std::uint32_t{});
+            return;
+        case DType::Int64:
+            f(std::int64_t{});
+            return;
+        case DType::UInt64:
+            f(std::uint64_t{});
+            return;
+        case DType::Float32:
+            f(float{});
+            return;
+        case DType::Float64:
+            f(double{});
+            return;
+        case DType::String:
+            break;
     }
     throw Error("strings cannot be stored in a series");
 }

@@ -27,7 +27,8 @@ TEST(Scan, InlineSeriesWithBitshuffleLz4) {
     TempDir dir;
     {
         auto scan = rs::ScanWriter::create(dir.path());
-        auto robot = scan.add_node("source_robot", "raybotic.robot_arm", robot_attributes());
+        auto robot =
+            scan.add_node("source_robot", "raybotic.robot_arm", robot_attributes());
         rs::InlineOptions opt;
         opt.chunk_bytes = 5 * 48;
         opt.compression.method = rs::Compression::BitshuffleLZ4;
@@ -38,7 +39,9 @@ TEST(Scan, InlineSeriesWithBitshuffleLz4) {
         }
         scan.finalize();
     }
-    auto joints = rs::ScanReader::open(dir.path()).node("robots/source_robot").series("joint_states");
+    auto joints = rs::ScanReader::open(dir.path())
+                      .node("robots/source_robot")
+                      .series("joint_states");
     ASSERT_EQ(joints.size(), 23u);
     const auto q = joints.read("position").values<double>();
     for (int i = 0; i < 23; ++i) EXPECT_DOUBLE_EQ(q[i * 6 + 5], 0.1 * i - 1.0) << i;
@@ -48,11 +51,13 @@ TEST(Scan, InlineSeriesWithBitshuffleLz4) {
 TEST(Scan, WritesAndReadsInlineSeries) {
     TempDir dir;
     {
-        auto scan = rs::ScanWriter::create(dir.path(), {.description = "unit test",
-                                                        .operator_name = "ci",
-                                                        .sample_id = "part_42",
-                                                        .extra = {{"site", std::string("lab")}}});
-        auto robot = scan.add_node("source_robot", "raybotic.robot_arm", robot_attributes());
+        auto scan =
+            rs::ScanWriter::create(dir.path(), {.description = "unit test",
+                                                .operator_name = "ci",
+                                                .sample_id = "part_42",
+                                                .extra = {{"site", std::string("lab")}}});
+        auto robot =
+            scan.add_node("source_robot", "raybotic.robot_arm", robot_attributes());
         EXPECT_EQ(robot.path(), "robots/source_robot");
 
         // Shape [joint_names] is resolved from the attribute's length; small
@@ -62,7 +67,8 @@ TEST(Scan, WritesAndReadsInlineSeries) {
         for (int i = 0; i < 25; ++i) {
             std::vector<double> q(6, 0.1 * i);
             std::vector<float> qd(6, 1.0f);  // converted to float64
-            joints.append(1000 + i, {{"position", rs::view(q)}, {"velocity", rs::view(qd)}});
+            joints.append(1000 + i,
+                          {{"position", rs::view(q)}, {"velocity", rs::view(qd)}});
         }
         EXPECT_EQ(joints.size(), 25u);
 
@@ -73,7 +79,8 @@ TEST(Scan, WritesAndReadsInlineSeries) {
         auto pose = tf.series("pose");
         const double t[3] = {0.1, 0.2, 0.3};
         const double r[4] = {0, 0, 0, 1};
-        pose.append(5, {{"translation", rs::view(t, {3})}, {"rotation", rs::view(r, {4})}});
+        pose.append(5,
+                    {{"translation", rs::view(t, {3})}, {"rotation", rs::view(r, {4})}});
         scan.finalize();
     }
 
@@ -85,11 +92,12 @@ TEST(Scan, WritesAndReadsInlineSeries) {
     EXPECT_EQ(std::get<std::string>(attrs.at("site")), "lab");
     EXPECT_EQ(std::get<std::string>(attrs.at("uuid")).size(), 36u);
 
-    EXPECT_EQ(scan.node_paths(), (std::vector<std::string>{"robots/source_robot",
-                                                           "frames/scan_source"}));
+    EXPECT_EQ(scan.node_paths(),
+              (std::vector<std::string>{"robots/source_robot", "frames/scan_source"}));
     auto robot = scan.node("robots/source_robot");
     EXPECT_EQ(robot.schema().id(), "raybotic.robot_arm/1");
-    EXPECT_EQ(std::get<std::vector<std::string>>(*robot.attribute("joint_names")).size(), 6u);
+    EXPECT_EQ(std::get<std::vector<std::string>>(*robot.attribute("joint_names")).size(),
+              6u);
     EXPECT_TRUE(std::get<bool>(*robot.attribute("simulated")));
     EXPECT_EQ(robot.series_names(), (std::vector<std::string>{"joint_states"}));
 
@@ -165,21 +173,23 @@ TEST(Scan, AttributesFollowTheSchemaType) {
     TempDir dir;
     {
         auto scan = rs::ScanWriter::create(dir.path());
-        auto src = scan.add_node("source_0", "raybotic.xray_source",
-                                 {{"frame_id", std::string("scan_source")},
-                                  {"simulated", true},
-                                  {"voltage_min_kv", std::int64_t{20}},  // int -> float64
-                                  {"voltage_max_kv", 225.0},
-                                  {"current_max_ua", 1000.0},
-                                  {"power_max_w", 320.0},
-                                  {"focal_spots_um", std::vector<std::int64_t>{5, 20, 80}},
-                                  {"x_custom", std::string("allowed")}});
+        auto src =
+            scan.add_node("source_0", "raybotic.xray_source",
+                          {{"frame_id", std::string("scan_source")},
+                           {"simulated", true},
+                           {"voltage_min_kv", std::int64_t{20}},  // int -> float64
+                           {"voltage_max_kv", 225.0},
+                           {"current_max_ua", 1000.0},
+                           {"power_max_w", 320.0},
+                           {"focal_spots_um", std::vector<std::int64_t>{5, 20, 80}},
+                           {"x_custom", std::string("allowed")}});
         src.set_attribute("filter_material", std::string("Cu"));
         EXPECT_THROW(src.set_attribute("voltage_max_kv", std::string("high")), rs::Error);
     }
     auto node = rs::ScanReader::open(dir.path()).node("sensors/source_0");
     EXPECT_DOUBLE_EQ(std::get<double>(*node.attribute("voltage_min_kv")), 20.0);
-    EXPECT_EQ(std::get<std::vector<double>>(*node.attribute("focal_spots_um")).size(), 3u);
+    EXPECT_EQ(std::get<std::vector<double>>(*node.attribute("focal_spots_um")).size(),
+              3u);
     EXPECT_EQ(std::get<std::string>(*node.attribute("filter_material")), "Cu");
     EXPECT_EQ(std::get<std::string>(*node.attribute("x_custom")), "allowed");
     EXPECT_FALSE(node.attributes().contains("schema_json"));
@@ -209,7 +219,8 @@ TEST(Scan, OpenExistingScanToAddAndReplaceNodes) {
                                           {"position_source", rs::scalar(src)},
                                           {"quality", rs::scalar(quality)},
                                           {"observations", rs::scalar(n)}});
-        EXPECT_THROW(scan.remove_node("annotations/viewer"), rs::Error);  // added just now
+        EXPECT_THROW(scan.remove_node("annotations/viewer"),
+                     rs::Error);  // added just now
         scan.finalize();
     }
     const auto reader = rs::ScanReader::open(dir.path());

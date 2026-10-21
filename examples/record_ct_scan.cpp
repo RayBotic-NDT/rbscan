@@ -30,8 +30,8 @@ std::vector<std::uint16_t> projection(std::uint64_t size, double angle) {
             const double dx = x - cx;
             const double dy = y - 0.5 * size;
             const double absorb = std::exp(-(dx * dx + dy * dy) / r2);
-            img[y * size + x] =
-                static_cast<std::uint16_t>(52000.0 * (1.0 - 0.7 * absorb) + ((x * 31 + y * 17) & 63));
+            img[y * size + x] = static_cast<std::uint16_t>(
+                52000.0 * (1.0 - 0.7 * absorb) + ((x * 31 + y * 17) & 63));
         }
     }
     return img;
@@ -50,8 +50,7 @@ std::array<double, 4> frame_rotation(double theta) {
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::fprintf(
-            stderr,
-            "usage: %s <scan_dir> [projections] [size] [threads] [compression]\n",
+            stderr, "usage: %s <scan_dir> [projections] [size] [threads] [compression]\n",
             argv[0]);
         return 2;
     }
@@ -72,11 +71,13 @@ int main(int argc, char** argv) {
         } else if (codec == "bitshuffle_lz4") {
             compression = rs::Compression::BitshuffleLZ4;
         } else {
-            throw rs::Error("compression must be none, deflate, shuffle_deflate or bitshuffle_lz4");
+            throw rs::Error(
+                "compression must be none, deflate, shuffle_deflate or bitshuffle_lz4");
         }
-        auto scan = rs::ScanWriter::create(dir, {.description = "synthetic CT scan",
-                                                 .operator_name = "rbscan example",
-                                                 .sample_id = "phantom_01"},
+        auto scan = rs::ScanWriter::create(dir,
+                                           {.description = "synthetic CT scan",
+                                            .operator_name = "rbscan example",
+                                            .sample_id = "phantom_01"},
                                            true);
 
         auto source = scan.add_node("source_0", "raybotic.xray_source",
@@ -128,7 +129,8 @@ int main(int argc, char** argv) {
         rs::SegmentOptions seg;
         seg.threads = threads;
         seg.compression.method = compression;
-        auto images = detector.segmented_series("image", {{"height", size}, {"width", size}}, seg);
+        auto images =
+            detector.segmented_series("image", {{"height", size}, {"width", size}}, seg);
         auto det_state = detector.series("state");
         auto src_state = source.series("state");
         auto source_joints = source_robot.series("joint_states");
@@ -142,7 +144,8 @@ int main(int argc, char** argv) {
         {
             const std::uint8_t binning = 1, emission = 2;
             const std::uint32_t w = static_cast<std::uint32_t>(size), averages = 1;
-            const double gain = 1.0, kv = 120.0, ua = 50.0, spot = 5.0, power = 6.0, filter = 0.5;
+            const double gain = 1.0, kv = 120.0, ua = 50.0, spot = 5.0, power = 6.0,
+                         filter = 0.5;
             const bool permitted = true;
             det_state.append(t0, {{"binning", rs::scalar(binning)},
                                   {"image_width", rs::scalar(w)},
@@ -163,12 +166,14 @@ int main(int argc, char** argv) {
 
         // A handful of synthetic images, reused, so the timing measures writing.
         std::vector<std::vector<std::uint16_t>> phantom;
-        for (int k = 0; k < 16; ++k) phantom.push_back(projection(size, k * std::numbers::pi / 8));
+        for (int k = 0; k < 16; ++k)
+            phantom.push_back(projection(size, k * std::numbers::pi / 8));
 
         const double fod = 0.4, fdd = 1.0, pixel = 139e-6;
         const auto start = std::chrono::steady_clock::now();
         for (std::uint64_t i = 0; i < n; ++i) {
-            const double a = 2.0 * std::numbers::pi * static_cast<double>(i) / static_cast<double>(n);
+            const double a =
+                2.0 * std::numbers::pi * static_cast<double>(i) / static_cast<double>(n);
             const std::int64_t t = t0 + static_cast<std::int64_t>(i) * 200'000'000;
             const double c = std::cos(a), s = std::sin(a);
             const double src[3] = {fod * c, fod * s, 0.0};
@@ -184,7 +189,8 @@ int main(int argc, char** argv) {
             for (int k = 0; k < 4; ++k) {
                 const std::int64_t tk = t + k * 50'000'000;
                 std::vector<double> q(6);
-                for (std::size_t j = 0; j < 6; ++j) q[j] = 0.3 * std::sin(a + 0.1 * j + 0.01 * k);
+                for (std::size_t j = 0; j < 6; ++j)
+                    q[j] = 0.3 * std::sin(a + 0.1 * j + 0.01 * k);
                 source_joints.append(tk, {{"position", rs::view(q)}});
                 detector_joints.append(tk, {{"position", rs::view(q)}});
                 source_tf.append(tk, {{"translation", rs::view(src, {3})},
@@ -212,10 +218,12 @@ int main(int argc, char** argv) {
         }
         scan.finalize();
         const double seconds =
-            std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
+                .count();
         const double mb = static_cast<double>(n * size * size * 2) / 1e6;
         std::printf("%llu projections %llux%llu: %.0f MB raw in %.2f s = %.0f MB/s\n",
-                    static_cast<unsigned long long>(n), static_cast<unsigned long long>(size),
+                    static_cast<unsigned long long>(n),
+                    static_cast<unsigned long long>(size),
                     static_cast<unsigned long long>(size), mb, seconds, mb / seconds);
         std::printf("written to %s\n", dir.c_str());
     } catch (const rs::Error& e) {

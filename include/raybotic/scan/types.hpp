@@ -17,7 +17,7 @@ namespace raybotic::scan {
 /// Everything rbscan throws. Header-only on purpose, so it crosses the DLL
 /// boundary without an exported base class.
 class Error : public std::runtime_error {
-public:
+  public:
     using std::runtime_error::runtime_error;
 };
 
@@ -47,17 +47,50 @@ enum class DType : std::uint8_t {
 
 template <class T>
 constexpr DType dtype_of();
-template <> constexpr DType dtype_of<bool>() { return DType::Bool; }
-template <> constexpr DType dtype_of<std::int8_t>() { return DType::Int8; }
-template <> constexpr DType dtype_of<std::uint8_t>() { return DType::UInt8; }
-template <> constexpr DType dtype_of<std::int16_t>() { return DType::Int16; }
-template <> constexpr DType dtype_of<std::uint16_t>() { return DType::UInt16; }
-template <> constexpr DType dtype_of<std::int32_t>() { return DType::Int32; }
-template <> constexpr DType dtype_of<std::uint32_t>() { return DType::UInt32; }
-template <> constexpr DType dtype_of<std::int64_t>() { return DType::Int64; }
-template <> constexpr DType dtype_of<std::uint64_t>() { return DType::UInt64; }
-template <> constexpr DType dtype_of<float>() { return DType::Float32; }
-template <> constexpr DType dtype_of<double>() { return DType::Float64; }
+template <>
+constexpr DType dtype_of<bool>() {
+    return DType::Bool;
+}
+template <>
+constexpr DType dtype_of<std::int8_t>() {
+    return DType::Int8;
+}
+template <>
+constexpr DType dtype_of<std::uint8_t>() {
+    return DType::UInt8;
+}
+template <>
+constexpr DType dtype_of<std::int16_t>() {
+    return DType::Int16;
+}
+template <>
+constexpr DType dtype_of<std::uint16_t>() {
+    return DType::UInt16;
+}
+template <>
+constexpr DType dtype_of<std::int32_t>() {
+    return DType::Int32;
+}
+template <>
+constexpr DType dtype_of<std::uint32_t>() {
+    return DType::UInt32;
+}
+template <>
+constexpr DType dtype_of<std::int64_t>() {
+    return DType::Int64;
+}
+template <>
+constexpr DType dtype_of<std::uint64_t>() {
+    return DType::UInt64;
+}
+template <>
+constexpr DType dtype_of<float>() {
+    return DType::Float32;
+}
+template <>
+constexpr DType dtype_of<double>() {
+    return DType::Float64;
+}
 
 using Shape = std::vector<std::uint64_t>;
 
@@ -101,7 +134,7 @@ template <class T>
 
 /// Owning row-major array returned by readers.
 class Array {
-public:
+  public:
     Array() = default;
     Array(DType dtype, Shape shape)
         : dtype_(dtype),
@@ -122,13 +155,14 @@ public:
             throw Error("Array holds " + std::string(to_string(dtype_)) + ", not " +
                         std::string(to_string(dtype_of<T>())));
         }
-        return {reinterpret_cast<const T*>(bytes_.data()), static_cast<std::size_t>(size())};
+        return {reinterpret_cast<const T*>(bytes_.data()),
+                static_cast<std::size_t>(size())};
     }
 
     /// Moves the buffer out, e.g. to hand it to numpy without a copy.
     [[nodiscard]] std::vector<std::byte> release() { return std::move(bytes_); }
 
-private:
+  private:
     DType dtype_{DType::Float64};
     Shape shape_;
     std::vector<std::byte> bytes_;
@@ -136,8 +170,9 @@ private:
 
 /// Attribute value. Integers of every width map to int64, floats to double;
 /// the schema decides the type stored in the file.
-using Value = std::variant<bool, std::int64_t, double, std::string, std::vector<std::int64_t>,
-                           std::vector<double>, std::vector<std::string>>;
+using Value =
+    std::variant<bool, std::int64_t, double, std::string, std::vector<std::int64_t>,
+                 std::vector<double>, std::vector<std::string>>;
 using Attributes = std::map<std::string, Value>;
 
 /// Human-readable form for logs and error messages.

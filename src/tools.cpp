@@ -1,5 +1,7 @@
 // summarize (info) and validate.
 
+#include "raybotic/scan/tools.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -11,7 +13,6 @@
 #include "convert.hpp"
 #include "internal.hpp"
 #include "raybotic/scan/rbscan.hpp"
-#include "raybotic/scan/tools.hpp"
 #include "series_layout.hpp"
 
 namespace raybotic::scan {
@@ -105,8 +106,9 @@ ScanSummary summarize(const fs::path& scan_path) {
                 ss.first_time = s.time(0, 1).front();
                 ss.last_time = s.time(ss.samples - 1, 1).front();
                 if (ss.samples > 1 && ss.last_time > ss.first_time) {
-                    ss.rate_hz = static_cast<double>(ss.samples - 1) /
-                                 (static_cast<double>(ss.last_time - ss.first_time) * 1e-9);
+                    ss.rate_hz =
+                        static_cast<double>(ss.samples - 1) /
+                        (static_cast<double>(ss.last_time - ss.first_time) * 1e-9);
                 }
             }
             std::uint64_t sample_bytes = sizeof(std::int64_t);
@@ -121,7 +123,8 @@ ScanSummary summarize(const fs::path& scan_path) {
             }
             ss.raw_bytes = sample_bytes * ss.samples;
             if (ss.storage == Storage::Segmented) {
-                const auto segs = detail::list_segments(scan.directory() / fs::path(path) / name);
+                const auto segs =
+                    detail::list_segments(scan.directory() / fs::path(path) / name);
                 ss.segments = segs.size();
                 for (const auto& f : segs) ss.stored_bytes += size_on_disk(f);
                 out.stored_bytes += ss.stored_bytes;
@@ -139,7 +142,8 @@ ScanSummary summarize(const fs::path& scan_path) {
 std::string to_text(const ScanSummary& s, bool attributes) {
     std::ostringstream out;
     out << detail::utf8(s.directory) << "\n";
-    out << "  format " << s.format_version << ", " << (s.complete ? "complete" : "NOT complete");
+    out << "  format " << s.format_version << ", "
+        << (s.complete ? "complete" : "NOT complete");
     for (const char* key : {"uuid", "created"}) {
         if (auto it = s.attributes.find(key); it != s.attributes.end()) {
             out << ", " << key << " " << std::get<std::string>(it->second);
@@ -173,15 +177,20 @@ std::string to_text(const ScanSummary& s, bool attributes) {
         }
         for (const auto& ss : n.series) {
             char line[256];
-            const double seconds = static_cast<double>(ss.last_time - ss.first_time) * 1e-9;
-            std::snprintf(line, sizeof(line), "  %-16s %-9s %8llu samples %9.1f s %9.2f Hz",
-                          ss.name.c_str(), ss.storage == Storage::Segmented ? "segmented" : "inline",
-                          static_cast<unsigned long long>(ss.samples), seconds, ss.rate_hz);
+            const double seconds =
+                static_cast<double>(ss.last_time - ss.first_time) * 1e-9;
+            std::snprintf(line, sizeof(line),
+                          "  %-16s %-9s %8llu samples %9.1f s %9.2f Hz", ss.name.c_str(),
+                          ss.storage == Storage::Segmented ? "segmented" : "inline",
+                          static_cast<unsigned long long>(ss.samples), seconds,
+                          ss.rate_hz);
             out << line;
             if (ss.segments > 0) out << "  " << ss.segments << " segments";
-            out << "  " << bytes_text(ss.raw_bytes) << " -> " << bytes_text(ss.stored_bytes) << "\n";
+            out << "  " << bytes_text(ss.raw_bytes) << " -> "
+                << bytes_text(ss.stored_bytes) << "\n";
             for (const auto& f : ss.fields) {
-                out << "      " << f.name << " " << to_string(f.dtype) << shape_text(f.sample_shape);
+                out << "      " << f.name << " " << to_string(f.dtype)
+                    << shape_text(f.sample_shape);
                 if (!f.units.empty()) out << " " << f.units;
                 out << "\n";
             }
@@ -243,7 +252,7 @@ std::string to_json(const ScanSummary& s) {
 namespace {
 
 class Validator {
-public:
+  public:
     Validator(const fs::path& scan_path, const ValidateOptions& options)
         : path_(scan_path), options_(options) {}
 
@@ -256,7 +265,7 @@ public:
         return std::move(report_);
     }
 
-private:
+  private:
     void add(Severity s, std::string path, std::string message) {
         report_.issues.push_back({s, std::move(path), std::move(message)});
     }
@@ -282,10 +291,12 @@ private:
 
         const auto attrs = scan.attributes();
         const auto version = scan.format_version();
-        if (version.rfind("1.", 0) != 0) error("", "unsupported format_version '" + version + "'");
+        if (version.rfind("1.", 0) != 0)
+            error("", "unsupported format_version '" + version + "'");
         if (!attrs.contains("uuid")) warning("", "no uuid");
         if (!scan.complete()) {
-            warning("", "scan is not complete (still recording, or crashed: run rebuild)");
+            warning("",
+                    "scan is not complete (still recording, or crashed: run rebuild)");
         }
 
         try {
@@ -305,12 +316,15 @@ private:
             if (!cat.is_directory()) continue;
             for (const auto& node : fs::directory_iterator(cat.path(), ec)) {
                 if (!node.is_directory()) continue;
-                const std::string p =
-                    cat.path().filename().string() + "/" + node.path().filename().string();
+                const std::string p = cat.path().filename().string() + "/" +
+                                      node.path().filename().string();
                 if (nodes.contains(p)) continue;
                 for (const auto& series : fs::directory_iterator(node.path(), ec)) {
-                    if (series.is_directory() && !detail::list_segments(series.path()).empty()) {
-                        warning(p, "has segments on disk but is not in the master (run rebuild)");
+                    if (series.is_directory() &&
+                        !detail::list_segments(series.path()).empty()) {
+                        warning(p,
+                                "has segments on disk but is not in the master (run "
+                                "rebuild)");
                         break;
                     }
                 }
@@ -323,10 +337,12 @@ private:
         const Schema& schema = node.schema();
         if (const Schema* reg = SchemaRegistry::global().find(schema.id())) {
             if (reg->to_json() != schema.to_json()) {
-                warning(path, "stored schema " + schema.id() + " differs from the registered one");
+                warning(path, "stored schema " + schema.id() +
+                                  " differs from the registered one");
             }
         } else {
-            info(path, "schema " + schema.id() + " is not registered here (stored copy used)");
+            info(path,
+                 "schema " + schema.id() + " is not registered here (stored copy used)");
         }
         if (schema.category != node.category()) {
             error(path, "schema category '" + schema.category + "' but stored under '" +
@@ -349,7 +365,8 @@ private:
             const auto frame = node.attribute("frame_id");
             if (frame && std::holds_alternative<std::string>(*frame) &&
                 !frames_->has_frame(std::get<std::string>(*frame))) {
-                info(path, "frame '" + std::get<std::string>(*frame) + "' is not under frames/");
+                info(path, "frame '" + std::get<std::string>(*frame) +
+                               "' is not under frames/");
             }
         }
         if (schema.name == "raybotic.transform") check_transform(node);
@@ -361,7 +378,9 @@ private:
         for (const auto& spec : node.schema().attributes) {
             auto it = attrs.find(spec.name);
             if (it == attrs.end()) {
-                if (spec.required) error(node.path(), "required attribute '" + spec.name + "' is missing");
+                if (spec.required)
+                    error(node.path(),
+                          "required attribute '" + spec.name + "' is missing");
                 continue;
             }
             const Value& v = it->second;
@@ -408,44 +427,52 @@ private:
                 continue;
             }
             if (!f.allows(s.dtype(f.name))) {
-                error(where + "/" + f.name, "dtype " + std::string(to_string(s.dtype(f.name))) +
+                error(where + "/" + f.name, "dtype " +
+                                                std::string(to_string(s.dtype(f.name))) +
                                                 " is not allowed by the schema");
             }
             const Shape shape = s.sample_shape(f.name);
             if (shape.size() != f.shape.size()) {
-                error(where + "/" + f.name, "sample shape " + shape_text(shape) + " has rank " +
-                                                std::to_string(shape.size()) + ", schema rank " +
-                                                std::to_string(f.shape.size()));
+                error(where + "/" + f.name,
+                      "sample shape " + shape_text(shape) + " has rank " +
+                          std::to_string(shape.size()) + ", schema rank " +
+                          std::to_string(f.shape.size()));
                 continue;
             }
             for (std::size_t i = 0; i < shape.size(); ++i) {
                 const DimSpec& d = f.shape[i];
                 if (d.fixed()) {
                     if (shape[i] != d.size) {
-                        error(where + "/" + f.name, "dimension " + std::to_string(i) + " is " +
-                                                        std::to_string(shape[i]) + ", schema says " +
-                                                        std::to_string(d.size));
+                        error(where + "/" + f.name,
+                              "dimension " + std::to_string(i) + " is " +
+                                  std::to_string(shape[i]) + ", schema says " +
+                                  std::to_string(d.size));
                     }
                     continue;
                 }
-                if (auto [it, fresh] = named.emplace(d.name, shape[i]); !fresh && it->second != shape[i]) {
-                    error(where, "dimension '" + d.name + "' is " + std::to_string(it->second) +
-                                     " in one field and " + std::to_string(shape[i]) + " in '" +
-                                     f.name + "'");
+                if (auto [it, fresh] = named.emplace(d.name, shape[i]);
+                    !fresh && it->second != shape[i]) {
+                    error(where, "dimension '" + d.name + "' is " +
+                                     std::to_string(it->second) + " in one field and " +
+                                     std::to_string(shape[i]) + " in '" + f.name + "'");
                 }
                 if (auto a = attrs.find(d.name); a != attrs.end()) {
                     std::optional<std::uint64_t> expected;
                     if (const auto* iv = std::get_if<std::int64_t>(&a->second)) {
                         expected = static_cast<std::uint64_t>(*iv);
-                    } else if (const auto* sv = std::get_if<std::vector<std::string>>(&a->second)) {
+                    } else if (const auto* sv =
+                                   std::get_if<std::vector<std::string>>(&a->second)) {
                         expected = sv->size();
-                    } else if (const auto* dv = std::get_if<std::vector<double>>(&a->second)) {
+                    } else if (const auto* dv =
+                                   std::get_if<std::vector<double>>(&a->second)) {
                         expected = dv->size();
                     }
                     if (expected && *expected != shape[i]) {
                         warning(where + "/" + f.name,
-                                "dimension '" + d.name + "' is " + std::to_string(shape[i]) +
-                                    " but the node attribute says " + std::to_string(*expected));
+                                "dimension '" + d.name + "' is " +
+                                    std::to_string(shape[i]) +
+                                    " but the node attribute says " +
+                                    std::to_string(*expected));
                     }
                 }
             }
@@ -471,15 +498,18 @@ private:
         }
         if (!options_.check_values) return;
         for (const auto& f : spec.fields) {
-            if (f.optional || (f.dtype != DType::Float32 && f.dtype != DType::Float64)) continue;
+            if (f.optional || (f.dtype != DType::Float32 && f.dtype != DType::Float64))
+                continue;
             if (std::find(fields.begin(), fields.end(), f.name) == fields.end()) continue;
             const auto per_sample = element_count(s.sample_shape(f.name));
-            if (per_sample * n * 8 > (64u << 20) || per_sample > 4096) continue;  // never images
+            if (per_sample * n * 8 > (64u << 20) || per_sample > 4096)
+                continue;  // never images
             const auto values = doubles(s, f.name);
             const auto nans = std::count_if(values.begin(), values.end(),
                                             [](double x) { return std::isnan(x); });
             if (nans > 0) {
-                warning(where + "/" + f.name, std::to_string(nans) + " NaN values in a required field");
+                warning(where + "/" + f.name,
+                        std::to_string(nans) + " NaN values in a required field");
             }
         }
     }
@@ -494,13 +524,16 @@ private:
             lengths.insert(h5::extent(d.get()).at(0));
         }
         if (lengths.size() > 1) {
-            error(where, "fields have different lengths (" + std::to_string(*lengths.begin()) +
-                             " .. " + std::to_string(*lengths.rbegin()) + ")");
+            error(where, "fields have different lengths (" +
+                             std::to_string(*lengths.begin()) + " .. " +
+                             std::to_string(*lengths.rbegin()) + ")");
         }
     }
 
-    void check_segments(const NodeReader& node, const SeriesSpec& spec, const std::string& where) {
-        const auto files = detail::list_segments(dir_ / fs::path(node.path()) / spec.name);
+    void check_segments(const NodeReader& node, const SeriesSpec& spec,
+                        const std::string& where) {
+        const auto files =
+            detail::list_segments(dir_ / fs::path(node.path()) / spec.name);
         std::uint64_t total = 0;
         std::uint64_t segment_size = 0;
         for (std::size_t k = 0; k < files.size(); ++k) {
@@ -521,7 +554,8 @@ private:
             }
             const auto schema = h5::read_string_attribute(f.get(), "schema").value_or("");
             if (schema != node.schema().id()) {
-                error(where, name + " has schema '" + schema + "', node has " + node.schema().id());
+                error(where, name + " has schema '" + schema + "', node has " +
+                                 node.schema().id());
             }
             auto uint_attr = [&](const char* key) -> std::uint64_t {
                 const auto v = h5::read_attribute(f.get(), key);
@@ -530,7 +564,8 @@ private:
                            : 0;
             };
             if (uint_attr("first_sample") != total) {
-                error(where, name + ": first_sample " + std::to_string(uint_attr("first_sample")) +
+                error(where, name + ": first_sample " +
+                                 std::to_string(uint_attr("first_sample")) +
                                  ", expected " + std::to_string(total));
             }
             segment_size = uint_attr("segment_size");
@@ -542,10 +577,12 @@ private:
             }
             const std::uint64_t n = lengths.empty() ? 0 : *lengths.begin();
             if (lengths.size() > 1) {
-                warning(where, name + ": fields have different lengths (incomplete flush?)");
+                warning(where,
+                        name + ": fields have different lengths (incomplete flush?)");
             }
             if (k + 1 < files.size() && segment_size > 0 && n != segment_size) {
-                warning(where, name + " holds " + std::to_string(n) + " samples, segment_size is " +
+                warning(where, name + " holds " + std::to_string(n) +
+                                   " samples, segment_size is " +
                                    std::to_string(segment_size));
             }
             total += n;
@@ -568,17 +605,19 @@ private:
     void check_transform(const NodeReader& node) {
         const auto parent = node.attribute("parent");
         const auto child = node.attribute("child");
-        if (parent && child && *parent == *child) error(node.path(), "parent equals child");
+        if (parent && child && *parent == *child)
+            error(node.path(), "parent equals child");
         if (!options_.check_values || !node.has_series("pose")) return;
         const auto r = doubles(node.series("pose"), "rotation");
         std::size_t bad = 0;
         for (std::size_t i = 0; i + 3 < r.size(); i += 4) {
-            const double nrm = std::sqrt(r[i] * r[i] + r[i + 1] * r[i + 1] + r[i + 2] * r[i + 2] +
-                                         r[i + 3] * r[i + 3]);
+            const double nrm = std::sqrt(r[i] * r[i] + r[i + 1] * r[i + 1] +
+                                         r[i + 2] * r[i + 2] + r[i + 3] * r[i + 3]);
             bad += std::abs(nrm - 1.0) > 1e-3 ? 1 : 0;
         }
         if (bad > 0) {
-            warning(node.path() + "/pose/rotation", std::to_string(bad) + " quaternions are not unit length");
+            warning(node.path() + "/pose/rotation",
+                    std::to_string(bad) + " quaternions are not unit length");
         }
     }
 
@@ -598,7 +637,8 @@ private:
                 warning(node.path(), std::string(key) + " '" + target + "' is a " +
                                          ref.schema().id() + ", not " + expected);
             }
-            if (std::string(key) == "detector" && ref.has_series("image")) images = ref.series("image");
+            if (std::string(key) == "detector" && ref.has_series("image"))
+                images = ref.series("image");
         }
         if (!options_.check_values || !node.has_series("projections")) return;
         const SeriesReader p = node.series("projections");
@@ -621,32 +661,41 @@ private:
                 }
             }
             if (out_of_range > 0) {
-                error(where, std::to_string(out_of_range) + " image_index values beyond the " +
+                error(where, std::to_string(out_of_range) +
+                                 " image_index values beyond the " +
                                  std::to_string(itime.size()) + " detector images");
             }
             if (off_time > 0) {
-                warning(where, std::to_string(off_time) +
-                                   " projections differ in time from their image by more than " +
-                                   std::to_string(options_.time_tolerance_s) + " s");
+                warning(where,
+                        std::to_string(off_time) +
+                            " projections differ in time from their image by more than " +
+                            std::to_string(options_.time_tolerance_s) + " s");
             }
         }
         const auto u = doubles(p, "detector_u");
         const auto v = doubles(p, "detector_v");
         std::size_t bad = 0;
         for (std::size_t i = 0; i + 2 < u.size() && i + 2 < v.size(); i += 3) {
-            const double nu = std::sqrt(u[i] * u[i] + u[i + 1] * u[i + 1] + u[i + 2] * u[i + 2]);
-            const double nv = std::sqrt(v[i] * v[i] + v[i + 1] * v[i + 1] + v[i + 2] * v[i + 2]);
+            const double nu =
+                std::sqrt(u[i] * u[i] + u[i + 1] * u[i + 1] + u[i + 2] * u[i + 2]);
+            const double nv =
+                std::sqrt(v[i] * v[i] + v[i + 1] * v[i + 1] + v[i + 2] * v[i + 2]);
             const double d = u[i] * v[i] + u[i + 1] * v[i + 1] + u[i + 2] * v[i + 2];
-            bad += (std::abs(nu - 1) > 1e-3 || std::abs(nv - 1) > 1e-3 || std::abs(d) > 1e-3) ? 1 : 0;
+            bad +=
+                (std::abs(nu - 1) > 1e-3 || std::abs(nv - 1) > 1e-3 || std::abs(d) > 1e-3)
+                    ? 1
+                    : 0;
         }
         if (bad > 0) {
-            warning(where, std::to_string(bad) + " rows with detector_u/v not unit or not orthogonal");
+            warning(where, std::to_string(bad) +
+                               " rows with detector_u/v not unit or not orthogonal");
         }
         const auto flags = doubles(p, "flags");
         const auto invalid = std::count_if(flags.begin(), flags.end(), [](double f) {
             return (static_cast<std::uint32_t>(f) & 1u) != 0;
         });
-        if (invalid > 0) warning(where, std::to_string(invalid) + " projections flagged invalid");
+        if (invalid > 0)
+            warning(where, std::to_string(invalid) + " projections flagged invalid");
     }
 
     static std::vector<double> doubles(const SeriesReader& s, std::string_view field) {
@@ -666,9 +715,12 @@ private:
 
 const char* severity_name(Severity s) {
     switch (s) {
-        case Severity::Error: return "error";
-        case Severity::Warning: return "warning";
-        case Severity::Info: return "info";
+        case Severity::Error:
+            return "error";
+        case Severity::Warning:
+            return "warning";
+        case Severity::Info:
+            return "info";
     }
     return "?";
 }
@@ -683,11 +735,12 @@ ValidationReport validate(const fs::path& scan, const ValidateOptions& options) 
 std::string to_text(const ValidationReport& r) {
     std::ostringstream out;
     for (const auto& i : r.issues) {
-        out << severity_name(i.severity) << ": " << (i.path.empty() ? "<scan>" : i.path) << ": "
-            << i.message << "\n";
+        out << severity_name(i.severity) << ": " << (i.path.empty() ? "<scan>" : i.path)
+            << ": " << i.message << "\n";
     }
-    out << r.count(Severity::Error) << " errors, " << r.count(Severity::Warning) << " warnings, "
-        << r.count(Severity::Info) << " notes -> " << (r.ok() ? "OK" : "FAILED") << "\n";
+    out << r.count(Severity::Error) << " errors, " << r.count(Severity::Warning)
+        << " warnings, " << r.count(Severity::Info) << " notes -> "
+        << (r.ok() ? "OK" : "FAILED") << "\n";
     return out.str();
 }
 
@@ -698,8 +751,9 @@ std::string to_json(const ValidationReport& r) {
     j["warnings"] = r.count(Severity::Warning);
     Json issues = Json::array();
     for (const auto& i : r.issues) {
-        issues.push_back(
-            {{"severity", severity_name(i.severity)}, {"path", i.path}, {"message", i.message}});
+        issues.push_back({{"severity", severity_name(i.severity)},
+                          {"path", i.path},
+                          {"message", i.message}});
     }
     j["issues"] = issues;
     return j.dump(2);

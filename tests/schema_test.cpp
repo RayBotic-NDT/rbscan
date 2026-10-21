@@ -6,12 +6,12 @@ namespace rs = raybotic::scan;
 
 TEST(Schema, BuiltinsAreRegistered) {
     const auto ids = rs::SchemaRegistry::global().ids();
-    for (const char* id : {"raybotic.sensor/1", "raybotic.xray_source/1", "raybotic.xray_detector/1",
-                           "raybotic.camera/1", "raybotic.depth_camera/1",
-                           "raybotic.profile_scanner/1", "raybotic.force_torque/1",
-                           "raybotic.robot_arm/1", "raybotic.transform/1",
-                           "raybotic.ct_acquisition/1", "raybotic.annotations/1",
-                           "raybotic.ezrt_import/1", "raybotic.volume/1"}) {
+    for (const char* id :
+         {"raybotic.sensor/1", "raybotic.xray_source/1", "raybotic.xray_detector/1",
+          "raybotic.camera/1", "raybotic.depth_camera/1", "raybotic.profile_scanner/1",
+          "raybotic.force_torque/1", "raybotic.robot_arm/1", "raybotic.transform/1",
+          "raybotic.ct_acquisition/1", "raybotic.annotations/1", "raybotic.ezrt_import/1",
+          "raybotic.volume/1"}) {
         EXPECT_NE(std::find(ids.begin(), ids.end(), id), ids.end()) << id;
     }
 }
@@ -69,13 +69,15 @@ TEST(Schema, CustomSensorExtendsBase) {
 TEST(Schema, RejectsInvalid) {
     auto& r = rs::SchemaRegistry::global();
     EXPECT_THROW(r.add_json("{"), rs::Error);
-    EXPECT_THROW(r.add_json(R"({"schema": "x.a", "version": 1})"), rs::Error);  // no category
+    EXPECT_THROW(r.add_json(R"({"schema": "x.a", "version": 1})"),
+                 rs::Error);  // no category
     EXPECT_THROW(r.add_json(R"({"schema": "x.b", "version": 1, "category": "sensors",
         "series": {"s": {"fields": {"time": {"dtype": "float64"}}}}})"),
                  rs::Error);  // reserved
     EXPECT_THROW(r.add_json(R"({"schema": "x.c", "version": 1, "category": "sensors",
         "series": {"s": {"fields": {"name": {"dtype": "string"}}}}})"),
                  rs::Error);  // strings only as attributes
-    EXPECT_THROW(r.add_json(R"({"schema": "x.d", "version": 1, "extends": "nope/1"})"), rs::Error);
+    EXPECT_THROW(r.add_json(R"({"schema": "x.d", "version": 1, "extends": "nope/1"})"),
+                 rs::Error);
     EXPECT_THROW((void)r.get("raybotic.unknown"), rs::Error);
 }

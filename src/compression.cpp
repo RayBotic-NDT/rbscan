@@ -35,7 +35,8 @@ libdeflate_compressor* compressor(int level) {
 }
 
 /// HDF5's shuffle: byte k of every element goes into plane k.
-void shuffle(const std::byte* in, std::byte* out, std::size_t size, std::size_t element_size) {
+void shuffle(const std::byte* in, std::byte* out, std::size_t size,
+             std::size_t element_size) {
     const std::size_t n = size / element_size;
     for (std::size_t k = 0; k < element_size; ++k) {
         std::byte* plane = out + k * n;
@@ -59,7 +60,8 @@ libdeflate_decompressor* decompressor() {
 }
 
 /// Inverse of shuffle().
-void unshuffle(const std::byte* in, std::byte* out, std::size_t size, std::size_t element_size) {
+void unshuffle(const std::byte* in, std::byte* out, std::size_t size,
+               std::size_t element_size) {
     const std::size_t n = size / element_size;
     for (std::size_t k = 0; k < element_size; ++k) {
         const std::byte* plane = in + k * n;
@@ -116,7 +118,8 @@ inline std::uint64_t transpose_8x8(std::uint64_t x) {
 }
 
 /// Bit-shuffles n elements (n % 8 == 0).
-void bitshuffle(const std::byte* in, std::byte* out, std::size_t n, std::size_t element_size) {
+void bitshuffle(const std::byte* in, std::byte* out, std::size_t n,
+                std::size_t element_size) {
     const auto* src = reinterpret_cast<const std::uint8_t*>(in);
     auto* dst = reinterpret_cast<std::uint8_t*>(out);
     const std::size_t row = n / 8;
@@ -128,7 +131,8 @@ void bitshuffle(const std::byte* in, std::byte* out, std::size_t n, std::size_t 
             const std::uint8_t* e = src + g * 16;
             const __m128i v0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(e));
             const __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(e + 16));
-            __m128i p0 = _mm_packus_epi16(_mm_and_si128(v0, mask), _mm_and_si128(v1, mask));
+            __m128i p0 =
+                _mm_packus_epi16(_mm_and_si128(v0, mask), _mm_and_si128(v1, mask));
             __m128i p1 = _mm_packus_epi16(_mm_srli_epi16(v0, 8), _mm_srli_epi16(v1, 8));
             std::uint8_t* d0 = dst + g;
             std::uint8_t* d1 = dst + 8 * row + g;
@@ -149,12 +153,18 @@ void bitshuffle(const std::byte* in, std::byte* out, std::size_t n, std::size_t 
             const __m128i v1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(e + 16));
             const __m128i v2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(e + 32));
             const __m128i v3 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(e + 48));
-            const __m128i lo0 = _mm_packus_epi16(_mm_and_si128(v0, mask), _mm_and_si128(v1, mask));
-            const __m128i lo1 = _mm_packus_epi16(_mm_and_si128(v2, mask), _mm_and_si128(v3, mask));
-            const __m128i hi0 = _mm_packus_epi16(_mm_srli_epi16(v0, 8), _mm_srli_epi16(v1, 8));
-            const __m128i hi1 = _mm_packus_epi16(_mm_srli_epi16(v2, 8), _mm_srli_epi16(v3, 8));
-            __m128i p0 = _mm_packus_epi16(_mm_and_si128(lo0, mask), _mm_and_si128(lo1, mask));
-            __m128i p1 = _mm_packus_epi16(_mm_and_si128(hi0, mask), _mm_and_si128(hi1, mask));
+            const __m128i lo0 =
+                _mm_packus_epi16(_mm_and_si128(v0, mask), _mm_and_si128(v1, mask));
+            const __m128i lo1 =
+                _mm_packus_epi16(_mm_and_si128(v2, mask), _mm_and_si128(v3, mask));
+            const __m128i hi0 =
+                _mm_packus_epi16(_mm_srli_epi16(v0, 8), _mm_srli_epi16(v1, 8));
+            const __m128i hi1 =
+                _mm_packus_epi16(_mm_srli_epi16(v2, 8), _mm_srli_epi16(v3, 8));
+            __m128i p0 =
+                _mm_packus_epi16(_mm_and_si128(lo0, mask), _mm_and_si128(lo1, mask));
+            __m128i p1 =
+                _mm_packus_epi16(_mm_and_si128(hi0, mask), _mm_and_si128(hi1, mask));
             __m128i p2 = _mm_packus_epi16(_mm_srli_epi16(lo0, 8), _mm_srli_epi16(lo1, 8));
             __m128i p3 = _mm_packus_epi16(_mm_srli_epi16(hi0, 8), _mm_srli_epi16(hi1, 8));
             std::uint8_t* d0 = dst + g;
@@ -196,7 +206,8 @@ void bitshuffle(const std::byte* in, std::byte* out, std::size_t n, std::size_t 
 }
 
 /// Inverse of bitshuffle().
-void bitunshuffle(const std::byte* in, std::byte* out, std::size_t n, std::size_t element_size) {
+void bitunshuffle(const std::byte* in, std::byte* out, std::size_t n,
+                  std::size_t element_size) {
     const auto* src = reinterpret_cast<const std::uint8_t*>(in);
     auto* dst = reinterpret_cast<std::uint8_t*>(out);
     const std::size_t row = n / 8;
@@ -212,7 +223,8 @@ void bitunshuffle(const std::byte* in, std::byte* out, std::size_t n, std::size_
         for (; g + 1 < row; g += 2) {
             const __m128i w0 = load_rows(src + g);
             const __m128i w1 = load_rows(src + 8 * row + g);
-            __m128i vg0 = _mm_packus_epi16(_mm_and_si128(w0, mask), _mm_and_si128(w1, mask));
+            __m128i vg0 =
+                _mm_packus_epi16(_mm_and_si128(w0, mask), _mm_and_si128(w1, mask));
             __m128i vg1 = _mm_packus_epi16(_mm_srli_epi16(w0, 8), _mm_srli_epi16(w1, 8));
             std::uint8_t* e = dst + g * 16;
             for (int m = 7; m >= 0; --m) {
@@ -230,19 +242,23 @@ void bitunshuffle(const std::byte* in, std::byte* out, std::size_t n, std::size_
             const __m128i w1 = load_rows(src + 8 * row + g);
             const __m128i w2 = load_rows(src + 16 * row + g);
             const __m128i w3 = load_rows(src + 24 * row + g);
-            __m128i lo0 = _mm_packus_epi16(_mm_and_si128(w0, mask), _mm_and_si128(w1, mask));
+            __m128i lo0 =
+                _mm_packus_epi16(_mm_and_si128(w0, mask), _mm_and_si128(w1, mask));
             __m128i lo1 = _mm_packus_epi16(_mm_srli_epi16(w0, 8), _mm_srli_epi16(w1, 8));
-            __m128i hi0 = _mm_packus_epi16(_mm_and_si128(w2, mask), _mm_and_si128(w3, mask));
+            __m128i hi0 =
+                _mm_packus_epi16(_mm_and_si128(w2, mask), _mm_and_si128(w3, mask));
             __m128i hi1 = _mm_packus_epi16(_mm_srli_epi16(w2, 8), _mm_srli_epi16(w3, 8));
             std::uint8_t* e = dst + g * 32;
             for (int m = 7; m >= 0; --m) {
                 const std::uint32_t u0 =
                     static_cast<std::uint16_t>(_mm_movemask_epi8(lo0)) |
-                    (static_cast<std::uint32_t>(static_cast<std::uint16_t>(_mm_movemask_epi8(hi0)))
+                    (static_cast<std::uint32_t>(
+                         static_cast<std::uint16_t>(_mm_movemask_epi8(hi0)))
                      << 16);
                 const std::uint32_t u1 =
                     static_cast<std::uint16_t>(_mm_movemask_epi8(lo1)) |
-                    (static_cast<std::uint32_t>(static_cast<std::uint16_t>(_mm_movemask_epi8(hi1)))
+                    (static_cast<std::uint32_t>(
+                         static_cast<std::uint16_t>(_mm_movemask_epi8(hi1)))
                      << 16);
                 std::memcpy(e + m * 4, &u0, 4);
                 std::memcpy(e + (8 + m) * 4, &u1, 4);
@@ -283,7 +299,8 @@ std::size_t for_each_block(std::size_t n, std::size_t block, Fn&& fn) {
 }
 
 std::vector<std::byte> encode_bitshuffle_lz4(const std::byte* data, std::size_t size,
-                                             std::size_t element_size, std::size_t block) {
+                                             std::size_t element_size,
+                                             std::size_t block) {
     if (element_size == 0 || size % element_size != 0) {
         throw Error("bitshuffle: chunk is not a whole number of elements");
     }
@@ -293,23 +310,26 @@ std::vector<std::byte> encode_bitshuffle_lz4(const std::byte* data, std::size_t 
     const std::size_t block_bytes = block * element_size;
     if (block_bytes > LZ4_MAX_INPUT_SIZE) throw Error("bitshuffle: block too large");
 
-    const auto bound = static_cast<std::size_t>(LZ4_compressBound(static_cast<int>(block_bytes)));
-    std::vector<std::byte> out(bshuf_header + size + (n / block + 1) * (4 + bound - block_bytes));
+    const auto bound =
+        static_cast<std::size_t>(LZ4_compressBound(static_cast<int>(block_bytes)));
+    std::vector<std::byte> out(bshuf_header + size +
+                               (n / block + 1) * (4 + bound - block_bytes));
     write_be(out.data(), size, 8);
     write_be(out.data() + 8, block_bytes, 4);
     std::vector<std::byte> shuffled(block_bytes);
     std::size_t pos = bshuf_header;
-    const std::size_t rest = for_each_block(n, block, [&](std::size_t first, std::size_t count) {
-        const std::size_t bytes = count * element_size;
-        bitshuffle(data + first * element_size, shuffled.data(), count, element_size);
-        const int written = LZ4_compress_default(
-            reinterpret_cast<const char*>(shuffled.data()),
-            reinterpret_cast<char*>(out.data() + pos + 4), static_cast<int>(bytes),
-            static_cast<int>(out.size() - pos - 4));
-        if (written <= 0) throw Error("LZ4_compress_default failed");
-        write_be(out.data() + pos, static_cast<std::uint64_t>(written), 4);
-        pos += 4 + static_cast<std::size_t>(written);
-    });
+    const std::size_t rest =
+        for_each_block(n, block, [&](std::size_t first, std::size_t count) {
+            const std::size_t bytes = count * element_size;
+            bitshuffle(data + first * element_size, shuffled.data(), count, element_size);
+            const int written = LZ4_compress_default(
+                reinterpret_cast<const char*>(shuffled.data()),
+                reinterpret_cast<char*>(out.data() + pos + 4), static_cast<int>(bytes),
+                static_cast<int>(out.size() - pos - 4));
+            if (written <= 0) throw Error("LZ4_compress_default failed");
+            write_be(out.data() + pos, static_cast<std::uint64_t>(written), 4);
+            pos += 4 + static_cast<std::size_t>(written);
+        });
     const std::size_t left = size - rest * element_size;
     std::memcpy(out.data() + pos, data + rest * element_size, left);
     out.resize(pos + left);
@@ -346,8 +366,9 @@ herr_t bitshuffle_set_local(hid_t dcpl, hid_t type, hid_t /*space*/) {
     return H5Pmodify_filter(dcpl, bitshuffle_filter_id, flags, n, values);
 }
 
-std::size_t bitshuffle_filter(unsigned flags, std::size_t cd_nelmts, const unsigned cd_values[],
-                              std::size_t nbytes, std::size_t* buf_size, void** buf) {
+std::size_t bitshuffle_filter(unsigned flags, std::size_t cd_nelmts,
+                              const unsigned cd_values[], std::size_t nbytes,
+                              std::size_t* buf_size, void** buf) {
     // Only the LZ4 variant (plain bitshuffle and zstd are not implemented).
     if (cd_nelmts < 5 || cd_values[4] != bitshuffle_lz4 || cd_values[2] == 0) return 0;
     void* result = nullptr;
@@ -360,10 +381,11 @@ std::size_t bitshuffle_filter(unsigned flags, std::size_t cd_nelmts, const unsig
             result_size = static_cast<std::size_t>(read_be(in, 8));
             result = H5allocate_memory(result_size, false);
             if (result == nullptr) return 0;
-            decode_bitshuffle_lz4(in, nbytes, static_cast<std::byte*>(result), result_size,
-                                  element_size);
+            decode_bitshuffle_lz4(in, nbytes, static_cast<std::byte*>(result),
+                                  result_size, element_size);
         } else {
-            const auto encoded = encode_bitshuffle_lz4(in, nbytes, element_size, cd_values[3]);
+            const auto encoded =
+                encode_bitshuffle_lz4(in, nbytes, element_size, cd_values[3]);
             result_size = encoded.size();
             result = H5allocate_memory(result_size, false);
             if (result == nullptr) return 0;
@@ -384,7 +406,8 @@ std::size_t bitshuffle_filter(unsigned flags, std::size_t cd_nelmts, const unsig
 void decode_bitshuffle_lz4(const std::byte* data, std::size_t size, std::byte* out,
                            std::size_t out_size, std::size_t element_size) {
     if (size < bshuf_header) throw Error("bitshuffle chunk too short");
-    if (read_be(data, 8) != out_size) throw Error("bitshuffle chunk has an unexpected size");
+    if (read_be(data, 8) != out_size)
+        throw Error("bitshuffle chunk has an unexpected size");
     const auto block_bytes = static_cast<std::size_t>(read_be(data + 8, 4));
     if (element_size == 0 || out_size % element_size != 0 || block_bytes == 0 ||
         block_bytes % element_size != 0 || (block_bytes / element_size) % 8 != 0) {
@@ -401,13 +424,15 @@ void decode_bitshuffle_lz4(const std::byte* data, std::size_t size, std::byte* o
             const auto packed = static_cast<std::size_t>(read_be(data + pos, 4));
             pos += 4;
             if (packed > size - pos) throw Error("truncated bitshuffle chunk");
-            const int got = LZ4_decompress_safe(reinterpret_cast<const char*>(data + pos),
-                                                reinterpret_cast<char*>(shuffled.data()),
-                                                static_cast<int>(packed), static_cast<int>(bytes));
+            const int got =
+                LZ4_decompress_safe(reinterpret_cast<const char*>(data + pos),
+                                    reinterpret_cast<char*>(shuffled.data()),
+                                    static_cast<int>(packed), static_cast<int>(bytes));
             if (got < 0 || static_cast<std::size_t>(got) != bytes) {
                 throw Error("corrupt LZ4 block in bitshuffle chunk");
             }
-            bitunshuffle(shuffled.data(), out + first * element_size, count, element_size);
+            bitunshuffle(shuffled.data(), out + first * element_size, count,
+                         element_size);
             pos += packed;
         });
     const std::size_t left = out_size - rest * element_size;
@@ -430,8 +455,9 @@ void register_filters() {
     h5::check(H5Zregister(&bitshuffle_class), "H5Zregister bitshuffle");
 }
 
-void decode_chunk(const std::byte* data, std::size_t size, std::byte* out, std::size_t out_size,
-                  std::size_t element_size, bool deflated, bool shuffled) {
+void decode_chunk(const std::byte* data, std::size_t size, std::byte* out,
+                  std::size_t out_size, std::size_t element_size, bool deflated,
+                  bool shuffled) {
     shuffled = shuffled && element_size > 1;
     std::vector<std::byte> inflated;
     const std::byte* plain = data;
@@ -488,20 +514,24 @@ std::vector<std::byte> encode_chunk(const std::byte* data, std::size_t size,
 
 void set_filters(hid_t dcpl, const CompressionOptions& options) {
     switch (options.method) {
-        case Compression::None: return;
+        case Compression::None:
+            return;
         case Compression::BitshuffleLZ4: {
             // set_local fills in the version and the element size.
             const unsigned values[5] = {0, 0, 0, 0, bitshuffle_lz4};
-            h5::check(H5Pset_filter(dcpl, bitshuffle_filter_id, H5Z_FLAG_MANDATORY, 5, values),
-                      "H5Pset_filter bitshuffle");
+            h5::check(
+                H5Pset_filter(dcpl, bitshuffle_filter_id, H5Z_FLAG_MANDATORY, 5, values),
+                "H5Pset_filter bitshuffle");
             return;
         }
         case Compression::ShuffleDeflate:
             h5::check(H5Pset_shuffle(dcpl), "H5Pset_shuffle");
             [[fallthrough]];
         case Compression::Deflate: {
-            const int level = options.level < 0 ? 1 : (options.level > 9 ? 9 : options.level);
-            h5::check(H5Pset_deflate(dcpl, static_cast<unsigned>(level)), "H5Pset_deflate");
+            const int level =
+                options.level < 0 ? 1 : (options.level > 9 ? 9 : options.level);
+            h5::check(H5Pset_deflate(dcpl, static_cast<unsigned>(level)),
+                      "H5Pset_deflate");
             return;
         }
     }

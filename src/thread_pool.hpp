@@ -12,7 +12,7 @@ namespace raybotic::scan::detail {
 
 /// Fixed-size pool for chunk compression.
 class ThreadPool {
-public:
+  public:
     explicit ThreadPool(unsigned threads) {
         if (threads == 0) threads = 1;
         for (unsigned i = 0; i < threads; ++i) {
@@ -45,7 +45,7 @@ public:
         return future;
     }
 
-private:
+  private:
     void run() {
         for (;;) {
             std::function<void()> job;

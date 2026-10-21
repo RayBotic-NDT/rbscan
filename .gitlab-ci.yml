@@ -2,14 +2,17 @@
 # GitLab CI/CD Pipeline for rbscan (RayBotic Scan Data Format)
 # ==============================================================================
 # Stages:
-#   1. build    - CMake Release build (C++ shared library, CLI tool, tests)
-#   2. test     - C++ GoogleTest + Python pytest suite via CTest (JUnit report)
-#   3. package  - C++ DLLs / SDK (rbscan.dll, rbscan_hdf5.dll, rbscan.lib,
+#   1. lint     - Clang-format code style verification
+#   2. build    - CMake Release build (C++ shared library, CLI tool, tests)
+#   3. test     - C++ GoogleTest + Python pytest suite via CTest (JUnit report)
+#   4. package  - C++ DLLs / SDK (rbscan.dll, rbscan_hdf5.dll, rbscan.lib,
 #                 headers, CMake config) and Python wheels (*.whl) exposed
-#                 directly as GitLab CI Job Artifacts.
+#                 as GitLab CI Job Artifacts and published to the GitLab
+#                 Generic Package Registry (packages/generic/rbscan/<version>/).
 # ==============================================================================
 
 stages:
+  - lint
   - build
   - test
   - package
@@ -40,6 +43,49 @@ variables:
     -DRBSCAN_BUILD_EXAMPLES=ON
     -DRBSCAN_BUILD_TOOLS=ON
     -DRBSCAN_WARNINGS_AS_ERRORS=ON
+
+# ------------------------------------------------------------------
+# Stage: Lint & Code Formatting Check
+# ------------------------------------------------------------------
+lint:clang-format:
+  stage: lint
+  script:
+    - |
+      $clangFormat = Get-Command clang-format -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+      if (-not $clangFormat) {
+        $searchPaths = @(
+          "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-format.exe",
+          "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\bin\clang-format.exe",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin\clang-format.exe",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\bin\clang-format.exe",
+          "C:\Program Files\LLVM\bin\clang-format.exe"
+        )
+        foreach ($p in $searchPaths) {
+          if (Test-Path $p) {
+            $clangFormat = $p
+            break
+          }
+        }
+      }
+      if (-not $clangFormat) {
+        Write-Warning "clang-format not found; skipping lint step."
+        exit 0
+      }
+      Write-Host "Using clang-format from: $clangFormat"
+      $files = Get-ChildItem -Path src, include, tools, examples, tests, python -Include *.h, *.cpp, *.hpp -Recurse | Where-Object { $_.FullName -notmatch '\\build\\' -and $_.FullName -notmatch '\\dist\\' }
+      $failedFiles = @()
+      foreach ($file in $files) {
+        $output = & $clangFormat --dry-run --Werror $file.FullName 2>&1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Formatting violation in: $($file.FullName)"
+          $failedFiles += $file.FullName
+        }
+      }
+      if ($failedFiles.Count -gt 0) {
+        Write-Error "Found $($failedFiles.Count) files with clang-format style violations."
+        exit 1
+      }
+      Write-Host "All C++ files are compliant with .clang-format."
 
 # ------------------------------------------------------------------
 # Stage: Build Release Binaries
@@ -171,6 +217,27 @@ package:artifacts:
       Write-Host "=== Packaged Artifacts ==="
       Get-ChildItem -Path "dist" -Recurse -File | ForEach-Object {
         Write-Host ("  {0} ({1:N1} KB)" -f $_.FullName.Substring($PWD.Path.Length + 1), ($_.Length / 1KB))
+      }
+
+      # 3. Publish SDK archive, DLLs, and Python wheels to the GitLab Generic Package Registry
+      #    on the default branch and on release tags (packages/generic/rbscan/<version>/...).
+      if ($env:CI_COMMIT_TAG -or ($env:CI_COMMIT_BRANCH -eq $env:CI_DEFAULT_BRANCH)) {
+        $version = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG -replace '^v', '' } else { "0.0.0-$env:CI_COMMIT_SHORT_SHA" }
+        $filesToPublish = @()
+        $filesToPublish += Get-Item "dist/rbscan-sdk-win64.zip"
+        $filesToPublish += Get-ChildItem -Path "dist/dll" -File
+        $filesToPublish += Get-ChildItem -Path "dist/wheels" -Filter "*.whl"
+
+        foreach ($file in $filesToPublish) {
+          $url = "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/packages/generic/rbscan/$version/$($file.Name)"
+          Write-Host "Publishing $($file.Name) ($([math]::Round($file.Length / 1KB, 1)) KB) to $url ..."
+          $status = curl.exe --fail --silent --show-error --header "JOB-TOKEN: $env:CI_JOB_TOKEN" --upload-file $file.FullName --write-out "%{http_code}" $url
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Upload of $($file.Name) to the Generic Package Registry failed (HTTP $status, curl exit code $LASTEXITCODE)"
+            exit 1
+          }
+          Write-Host "Published: $url"
+        }
       }
   artifacts:
     name: "rbscan-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"

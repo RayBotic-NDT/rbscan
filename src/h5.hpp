@@ -29,7 +29,7 @@ hid_t check_id(hid_t id, std::string_view what);
 
 /// Owns an hid_t and closes it with the matching H5*close.
 class Id {
-public:
+  public:
     Id() = default;
     explicit Id(hid_t id) : id_(id) {}
     ~Id() { reset(); }
@@ -50,7 +50,7 @@ public:
     explicit operator bool() const { return valid(); }
     void reset();
 
-private:
+  private:
     hid_t id_{H5I_INVALID_HID};
 };
 

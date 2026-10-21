@@ -18,12 +18,14 @@ inline constexpr const char* segment_node_group = "node_attributes";
 /// UTF-8 path for the HDF5 C API.
 std::string utf8(const std::filesystem::path& path);
 
-std::filesystem::path segment_path(const std::filesystem::path& series_dir, std::uint64_t index);
+std::filesystem::path segment_path(const std::filesystem::path& series_dir,
+                                   std::uint64_t index);
 /// seg_*.h5 files of a series directory, in index order.
 std::vector<std::filesystem::path> list_segments(const std::filesystem::path& series_dir);
 
 /// Checks node and attribute names, required attributes and abstractness.
-void validate_node(std::string_view name, const Schema& schema, const Attributes& attributes);
+void validate_node(std::string_view name, const Schema& schema,
+                   const Attributes& attributes);
 /// Writes one attribute, typed by the schema where it declares it.
 void write_node_attribute(hid_t obj, const Schema& schema, const std::string& name,
                           const Value& value);

@@ -20,8 +20,8 @@ using Json = nlohmann::ordered_json;
 
 bool valid_name(std::string_view name) {
     return !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-               c == '_';
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+               (c >= '0' && c <= '9') || c == '_';
     });
 }
 
@@ -33,7 +33,8 @@ std::string str(const Json& j, const char* key, const std::string& fallback = {}
 
 bool flag(const Json& j, const char* key) {
     if (!j.contains(key)) return false;
-    if (!j[key].is_boolean()) throw Error(std::string("'") + key + "' must be true or false");
+    if (!j[key].is_boolean())
+        throw Error(std::string("'") + key + "' must be true or false");
     return j[key].get<bool>();
 }
 
@@ -59,7 +60,8 @@ FieldSpec parse_field(const std::string& name, const Json& j) {
     // "dtype": "uint16" or a list of allowed types, the first being the default.
     if (j.contains("dtype") && j["dtype"].is_array()) {
         for (const auto& d : j["dtype"]) {
-            if (!d.is_string()) throw Error("field '" + name + "': dtype list must hold names");
+            if (!d.is_string())
+                throw Error("field '" + name + "': dtype list must hold names");
             f.dtypes.push_back(dtype_from_string(d.get<std::string>()));
         }
         if (f.dtypes.empty()) throw Error("field '" + name + "': empty dtype list");
@@ -68,10 +70,12 @@ FieldSpec parse_field(const std::string& name, const Json& j) {
     }
     f.dtype = f.dtypes.front();
     for (auto d : f.dtypes) {
-        if (d == DType::String) throw Error("field '" + name + "': strings are attributes only");
+        if (d == DType::String)
+            throw Error("field '" + name + "': strings are attributes only");
     }
     if (j.contains("shape")) {
-        if (!j["shape"].is_array()) throw Error("field '" + name + "': shape must be a list");
+        if (!j["shape"].is_array())
+            throw Error("field '" + name + "': shape must be a list");
         for (const auto& d : j["shape"]) {
             DimSpec dim;
             if (d.is_number_unsigned() && d.get<std::uint64_t>() > 0) {
@@ -79,7 +83,8 @@ FieldSpec parse_field(const std::string& name, const Json& j) {
             } else if (d.is_string() && valid_name(d.get<std::string>())) {
                 dim.name = d.get<std::string>();
             } else {
-                throw Error("field '" + name + "': a dimension is a positive size or a name");
+                throw Error("field '" + name +
+                            "': a dimension is a positive size or a name");
             }
             f.shape.push_back(std::move(dim));
         }
@@ -154,7 +159,8 @@ Schema parse(std::string_view text, const SchemaRegistry* registry) {
         if (!valid_name(s.category)) throw Error("'category' is missing or invalid");
 
         if (j.contains("attributes")) {
-            if (!j["attributes"].is_object()) throw Error("'attributes' must be an object");
+            if (!j["attributes"].is_object())
+                throw Error("'attributes' must be an object");
             for (const auto& [attr_name, attr] : j["attributes"].items()) {
                 merge_by_name(s.attributes, parse_attribute(attr_name, attr));
             }
@@ -166,7 +172,8 @@ Schema parse(std::string_view text, const SchemaRegistry* registry) {
             }
         }
     } catch (const Error& e) {
-        throw Error("schema " + (name.empty() ? std::string("?") : name) + ": " + e.what());
+        throw Error("schema " + (name.empty() ? std::string("?") : name) + ": " +
+                    e.what());
     }
     return s;
 }
@@ -177,7 +184,8 @@ std::vector<std::filesystem::path> schema_path_from_env() {
     constexpr char sep = ';';
     char* value = nullptr;
     std::size_t len = 0;
-    if (_dupenv_s(&value, &len, "RBSCAN_SCHEMA_PATH") != 0 || value == nullptr) return dirs;
+    if (_dupenv_s(&value, &len, "RBSCAN_SCHEMA_PATH") != 0 || value == nullptr)
+        return dirs;
     std::string env(value);
     std::free(value);
 #else
@@ -295,7 +303,8 @@ SchemaRegistry& SchemaRegistry::global() {
         auto* r = new SchemaRegistry();
         // Built-in schemas may extend each other in any file order.
         std::vector<std::string_view> pending;
-        for (const auto& [file, text] : detail::embedded_schemas()) pending.push_back(text);
+        for (const auto& [file, text] : detail::embedded_schemas())
+            pending.push_back(text);
         while (!pending.empty()) {
             std::vector<std::string_view> failed;
             std::string first_error;

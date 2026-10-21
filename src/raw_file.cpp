@@ -23,8 +23,8 @@ namespace raybotic::scan::detail {
 std::shared_ptr<RawFile> RawFile::open(const std::filesystem::path& path) {
     // Share everything: HDF5 (and a SWMR writer) keep their own handles open.
     HANDLE h = CreateFileW(path.c_str(), GENERIC_READ,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h == INVALID_HANDLE_VALUE) return nullptr;
     std::shared_ptr<RawFile> f(new RawFile());
     f->handle_ = h;

@@ -9,9 +9,9 @@
 #include "compression.hpp"
 #include "internal.hpp"
 #include "raw_file.hpp"
-#include "thread_pool.hpp"
 #include "raybotic/scan/writer.hpp"
 #include "series_layout.hpp"
+#include "thread_pool.hpp"
 
 namespace raybotic::scan {
 
@@ -31,8 +31,8 @@ struct FieldInfo {
 };
 
 /// Reads rows [start, start + count) of a dataset into `out`.
-void read_rows(hid_t dataset, const FieldInfo& field, std::uint64_t start, std::uint64_t count,
-               void* out) {
+void read_rows(hid_t dataset, const FieldInfo& field, std::uint64_t start,
+               std::uint64_t count, void* out) {
     if (count == 0) return;
     h5::Lock lock(h5::mutex());
     const auto rank = field.sample_shape.size() + 1;
@@ -40,13 +40,15 @@ void read_rows(hid_t dataset, const FieldInfo& field, std::uint64_t start, std::
     std::vector<hsize_t> block(rank);
     offset[0] = start;
     block[0] = count;
-    for (std::size_t i = 0; i < field.sample_shape.size(); ++i) block[i + 1] = field.sample_shape[i];
+    for (std::size_t i = 0; i < field.sample_shape.size(); ++i)
+        block[i + 1] = field.sample_shape[i];
     h5::Id fspace(h5::check_id(H5Dget_space(dataset), "H5Dget_space"));
     h5::check(H5Sselect_hyperslab(fspace.get(), H5S_SELECT_SET, offset.data(), nullptr,
                                   block.data(), nullptr),
               "H5Sselect_hyperslab");
-    h5::Id mspace(h5::check_id(H5Screate_simple(static_cast<int>(rank), block.data(), nullptr),
-                               "H5Screate_simple"));
+    h5::Id mspace(
+        h5::check_id(H5Screate_simple(static_cast<int>(rank), block.data(), nullptr),
+                     "H5Screate_simple"));
     h5::Id mtype = h5::memory_type(field.dtype);
     h5::check(H5Dread(dataset, mtype.get(), mspace.get(), fspace.get(), H5P_DEFAULT, out),
               "reading " + field.name);
@@ -79,7 +81,8 @@ struct DirectChunks {
         return position >= 0 && (mask & (1u << static_cast<unsigned>(position))) == 0;
     }
     [[nodiscard]] bool any_applied(unsigned mask) const {
-        return applied(shuffle, mask) || applied(deflate, mask) || applied(bitshuffle, mask);
+        return applied(shuffle, mask) || applied(deflate, mask) ||
+               applied(bitshuffle, mask);
     }
 };
 
@@ -97,13 +100,14 @@ std::shared_ptr<detail::RawFile> raw_file_of(hid_t dataset) {
     if (!fapl || H5Pget_driver(fapl.get()) != H5FD_SEC2) return nullptr;
     h5::Id fcpl(H5Fget_create_plist(file.get()));
     hsize_t userblock = 0;
-    if (!fcpl || H5Pget_userblock(fcpl.get(), &userblock) < 0 || userblock != 0) return nullptr;
+    if (!fcpl || H5Pget_userblock(fcpl.get(), &userblock) < 0 || userblock != 0)
+        return nullptr;
     const ssize_t length = H5Fget_name(file.get(), nullptr, 0);
     if (length <= 0) return nullptr;
     std::string name(static_cast<std::size_t>(length), '\0');
     if (H5Fget_name(file.get(), name.data(), name.size() + 1) < 0) return nullptr;
-    return detail::RawFile::open(
-        fs::path(std::u8string(reinterpret_cast<const char8_t*>(name.data()), name.size())));
+    return detail::RawFile::open(fs::path(
+        std::u8string(reinterpret_cast<const char8_t*>(name.data()), name.size())));
 }
 
 DirectChunks inspect_chunks(hid_t dataset, const FieldInfo& field) {
@@ -134,8 +138,9 @@ DirectChunks inspect_chunks(hid_t dataset, const FieldInfo& field) {
         unsigned values[8] = {};
         std::size_t n_values = 8;
         unsigned config = 0;
-        const H5Z_filter_t id = H5Pget_filter2(dcpl.get(), static_cast<unsigned>(i), &flags,
-                                               &n_values, values, 0, nullptr, &config);
+        const H5Z_filter_t id =
+            H5Pget_filter2(dcpl.get(), static_cast<unsigned>(i), &flags, &n_values,
+                           values, 0, nullptr, &config);
         if (id == H5Z_FILTER_SHUFFLE) {
             dc.shuffle = i;
         } else if (id == H5Z_FILTER_DEFLATE) {
@@ -172,15 +177,17 @@ bool locate_chunk(hid_t dataset, const DirectChunks& dc, const FieldInfo& field,
     h5::Lock lock(h5::mutex());
     std::vector<hsize_t> offset(field.sample_shape.size() + 1, 0);
     offset[0] = index;
-    if (H5Dget_chunk_info_by_coord(dataset, offset.data(), &c.mask, &c.address, &c.size) < 0 ||
+    if (H5Dget_chunk_info_by_coord(dataset, offset.data(), &c.mask, &c.address, &c.size) <
+            0 ||
         c.address == HADDR_UNDEF || c.size == 0) {
         H5Eclear2(H5E_DEFAULT);
         return false;
     }
     if (!dc.file) {
         c.bytes.resize(static_cast<std::size_t>(c.size));
-        h5::check(H5Dread_chunk(dataset, H5P_DEFAULT, offset.data(), &c.mask, c.bytes.data()),
-                  "H5Dread_chunk " + field.name);
+        h5::check(
+            H5Dread_chunk(dataset, H5P_DEFAULT, offset.data(), &c.mask, c.bytes.data()),
+            "H5Dread_chunk " + field.name);
     }
     return true;
 }
@@ -309,7 +316,8 @@ struct SeriesReader::Impl {
         for (std::size_t i = 0; i < fields.size(); ++i) {
             if (fields[i].name == name) return i;
         }
-        throw Error("series '" + spec.name + "' has no field '" + std::string(name) + "'");
+        throw Error("series '" + spec.name + "' has no field '" + std::string(name) +
+                    "'");
     }
 
     void clamp(std::uint64_t start, std::uint64_t& count) const {
@@ -338,7 +346,8 @@ struct MasterSeries final : SeriesReader::Impl {
 
     void read(std::size_t field, std::uint64_t start, std::uint64_t count,
               std::byte* out) const override {
-        read_samples(datasets[field].get(), direct[field], fields[field], start, count, out);
+        read_samples(datasets[field].get(), direct[field], fields[field], start, count,
+                     out);
     }
 };
 
@@ -385,7 +394,8 @@ struct SegmentSeries final : SeriesReader::Impl {
                     const auto names = h5::children(s.file.get());
                     std::vector<std::string> order = {detail::time_field};
                     for (const auto& f : spec.fields) {
-                        if (std::find(names.begin(), names.end(), f.name) != names.end()) {
+                        if (std::find(names.begin(), names.end(), f.name) !=
+                            names.end()) {
                             order.push_back(f.name);
                         }
                     }
@@ -418,12 +428,14 @@ struct SegmentSeries final : SeriesReader::Impl {
             if (start >= end) continue;
             const auto local = start - s.first;
             const auto n = std::min(count, end - start);
-            read_samples(s.datasets[field].get(), s.direct[field], fields[field], local, n, out);
+            read_samples(s.datasets[field].get(), s.direct[field], fields[field], local,
+                         n, out);
             out += n * bytes;
             start += n;
             count -= n;
         }
-        if (count != 0) throw Error("series '" + spec.name + "': samples missing in segments");
+        if (count != 0)
+            throw Error("series '" + spec.name + "': samples missing in segments");
     }
 };
 
@@ -431,10 +443,12 @@ struct SegmentSeries final : SeriesReader::Impl {
 
 SeriesReader::SeriesReader(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
 
-SeriesReader SeriesReader::open_segments(const fs::path& scan_dir, std::string_view node_path,
+SeriesReader SeriesReader::open_segments(const fs::path& scan_dir,
+                                         std::string_view node_path,
                                          std::string_view series) {
     h5::init();
-    const fs::path dir = scan_dir / fs::path(std::string(node_path)) / std::string(series);
+    const fs::path dir =
+        scan_dir / fs::path(std::string(node_path)) / std::string(series);
     const auto files = detail::list_segments(dir);
     if (files.empty()) throw Error("no segments in " + detail::utf8(dir));
     std::string json;
@@ -457,7 +471,8 @@ std::uint64_t SeriesReader::size() const { return impl_->size(); }
 
 std::vector<std::string> SeriesReader::fields() const {
     std::vector<std::string> out;
-    for (std::size_t i = 1; i < impl_->fields.size(); ++i) out.push_back(impl_->fields[i].name);
+    for (std::size_t i = 1; i < impl_->fields.size(); ++i)
+        out.push_back(impl_->fields[i].name);
     return out;
 }
 
@@ -473,14 +488,16 @@ std::string SeriesReader::units(std::string_view field) const {
     return impl_->fields[impl_->index(field)].units;
 }
 
-std::vector<std::int64_t> SeriesReader::time(std::uint64_t start, std::uint64_t count) const {
+std::vector<std::int64_t> SeriesReader::time(std::uint64_t start,
+                                             std::uint64_t count) const {
     impl_->clamp(start, count);
     std::vector<std::int64_t> out(static_cast<std::size_t>(count));
     impl_->read(0, start, count, reinterpret_cast<std::byte*>(out.data()));
     return out;
 }
 
-Array SeriesReader::read(std::string_view field, std::uint64_t start, std::uint64_t count) const {
+Array SeriesReader::read(std::string_view field, std::uint64_t start,
+                         std::uint64_t count) const {
     const auto i = impl_->index(field);
     impl_->clamp(start, count);
     const auto& f = impl_->fields[i];
@@ -541,8 +558,12 @@ struct NodeReader::Impl {
 NodeReader::NodeReader(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
 
 std::string NodeReader::path() const { return impl_->path; }
-std::string NodeReader::name() const { return impl_->path.substr(impl_->path.find('/') + 1); }
-std::string NodeReader::category() const { return impl_->path.substr(0, impl_->path.find('/')); }
+std::string NodeReader::name() const {
+    return impl_->path.substr(impl_->path.find('/') + 1);
+}
+std::string NodeReader::category() const {
+    return impl_->path.substr(0, impl_->path.find('/'));
+}
 const Schema& NodeReader::schema() const { return impl_->schema; }
 
 Attributes NodeReader::attributes() const {
@@ -576,7 +597,8 @@ std::vector<std::string> NodeReader::series_names() const {
 SeriesReader NodeReader::series(std::string_view name) const {
     const SeriesSpec& spec = impl_->schema.get_series(name);
     if (!has_series(name)) {
-        throw Error("node '" + impl_->path + "' has no data for series '" + spec.name + "'");
+        throw Error("node '" + impl_->path + "' has no data for series '" + spec.name +
+                    "'");
     }
     if (spec.storage == Storage::Segmented) {
         auto s = std::make_shared<SegmentSeries>();
@@ -612,7 +634,8 @@ ScanReader ScanReader::open(const fs::path& path) {
     impl->file = h5::open_file(detail::utf8(master), H5F_ACC_RDONLY);
     const auto format = h5::read_string_attribute(impl->file.get(), "format");
     if (format != format_name) {
-        throw Error(detail::utf8(master) + " is not a " + std::string(format_name) + " file");
+        throw Error(detail::utf8(master) + " is not a " + std::string(format_name) +
+                    " file");
     }
     return ScanReader(std::move(impl));
 }
@@ -628,7 +651,9 @@ bool ScanReader::complete() const {
     return v && std::holds_alternative<bool>(*v) && std::get<bool>(*v);
 }
 
-Attributes ScanReader::attributes() const { return h5::read_attributes(impl_->file.get()); }
+Attributes ScanReader::attributes() const {
+    return h5::read_attributes(impl_->file.get());
+}
 
 std::vector<std::string> ScanReader::categories() const {
     std::vector<std::string> out;
@@ -647,7 +672,8 @@ std::vector<std::string> ScanReader::node_paths(std::string_view category) const
         for (const auto& name : h5::children(group.get())) {
             if (!h5::is_group(group.get(), name)) continue;
             h5::Id node = h5::open_group(group.get(), name);
-            if (h5::read_string_attribute(node.get(), "schema")) out.push_back(cat + "/" + name);
+            if (h5::read_string_attribute(node.get(), "schema"))
+                out.push_back(cat + "/" + name);
         }
     }
     return out;

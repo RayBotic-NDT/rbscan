@@ -12,12 +12,19 @@ namespace raybotic::scan::detail {
 using Vec3 = std::array<double, 3>;
 using Quat = std::array<double, 4>;
 
-inline Vec3 add(const Vec3& a, const Vec3& b) { return {a[0] + b[0], a[1] + b[1], a[2] + b[2]}; }
-inline Vec3 sub(const Vec3& a, const Vec3& b) { return {a[0] - b[0], a[1] - b[1], a[2] - b[2]}; }
+inline Vec3 add(const Vec3& a, const Vec3& b) {
+    return {a[0] + b[0], a[1] + b[1], a[2] + b[2]};
+}
+inline Vec3 sub(const Vec3& a, const Vec3& b) {
+    return {a[0] - b[0], a[1] - b[1], a[2] - b[2]};
+}
 inline Vec3 scale(const Vec3& a, double s) { return {a[0] * s, a[1] * s, a[2] * s}; }
-inline double dot(const Vec3& a, const Vec3& b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+inline double dot(const Vec3& a, const Vec3& b) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
 inline Vec3 cross(const Vec3& a, const Vec3& b) {
-    return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+    return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0]};
 }
 inline double norm(const Vec3& a) { return std::sqrt(dot(a, a)); }
 inline Vec3 normalized(const Vec3& a) { return scale(a, 1.0 / norm(a)); }

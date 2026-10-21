@@ -2,8 +2,8 @@
 // resolved from it.
 
 #include <algorithm>
-#include <cstring>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <map>
 #include <optional>
@@ -36,7 +36,8 @@ std::vector<double> read_doubles(const SeriesReader& s, std::string_view field) 
 }
 
 /// Index of the last sample with time <= t.
-std::optional<std::size_t> last_at(const std::vector<std::int64_t>& times, std::int64_t t) {
+std::optional<std::size_t> last_at(const std::vector<std::int64_t>& times,
+                                   std::int64_t t) {
     auto it = std::upper_bound(times.begin(), times.end(), t);
     if (it == times.begin()) return std::nullopt;
     return static_cast<std::size_t>(std::distance(times.begin(), it) - 1);
@@ -57,7 +58,8 @@ double double_attribute(const NodeReader& node, const std::string& name) {
 }
 
 /// The node path of the one node with this schema, or the given one.
-std::string pick_node(const ScanReader& scan, const std::string& given, const char* schema) {
+std::string pick_node(const ScanReader& scan, const std::string& given,
+                      const char* schema) {
     if (!given.empty()) {
         if (!scan.has_node(given)) throw Error("no node '" + given + "'");
         return given;
@@ -101,8 +103,8 @@ struct FrameGraph::Impl {
                 p.rotation = rotation[i];
                 return p;
             }
-            const auto hi = static_cast<std::size_t>(
-                std::distance(time.begin(), std::upper_bound(time.begin(), time.end(), t)));
+            const auto hi = static_cast<std::size_t>(std::distance(
+                time.begin(), std::upper_bound(time.begin(), time.end(), t)));
             const std::size_t lo = hi - 1;
             if (time[lo] == t) {
                 p.translation = translation[lo];
@@ -110,11 +112,11 @@ struct FrameGraph::Impl {
                 return p;
             }
             interpolated = true;
-            const double alpha =
-                static_cast<double>(t - time[lo]) / static_cast<double>(time[hi] - time[lo]);
+            const double alpha = static_cast<double>(t - time[lo]) /
+                                 static_cast<double>(time[hi] - time[lo]);
             for (int k = 0; k < 3; ++k) {
-                p.translation[k] =
-                    translation[lo][k] + alpha * (translation[hi][k] - translation[lo][k]);
+                p.translation[k] = translation[lo][k] +
+                                   alpha * (translation[hi][k] - translation[lo][k]);
             }
             p.rotation = detail::slerp(rotation[lo], rotation[hi], alpha);
             return p;
@@ -123,8 +125,8 @@ struct FrameGraph::Impl {
     std::map<std::string, Edge, std::less<>> by_child;
 
     /// Pose of `frame` in the root of its tree.
-    std::pair<std::string, Pose> to_root(std::string_view frame, std::int64_t t, bool& extrapolated,
-                                         bool& interpolated) const {
+    std::pair<std::string, Pose> to_root(std::string_view frame, std::int64_t t,
+                                         bool& extrapolated, bool& interpolated) const {
         Pose pose;
         std::string current(frame);
         for (int depth = 0;; ++depth) {
@@ -141,8 +143,9 @@ struct FrameGraph::Impl {
         const auto [root_p, pose_p] = to_root(parent, t, extrapolated, interpolated);
         const auto [root_c, pose_c] = to_root(child, t, extrapolated, interpolated);
         if (root_p != root_c) {
-            throw Error("frames '" + std::string(parent) + "' and '" + std::string(child) +
-                        "' are not connected (roots '" + root_p + "' and '" + root_c + "')");
+            throw Error("frames '" + std::string(parent) + "' and '" +
+                        std::string(child) + "' are not connected (roots '" + root_p +
+                        "' and '" + root_c + "')");
         }
         return detail::compose(detail::inverse(pose_p), pose_c);
     }
@@ -155,7 +158,8 @@ std::shared_ptr<FrameGraph::Impl> load_frames(const fs::path& scan_path) {
     const ScanReader scan = ScanReader::open(scan_path);
     for (const auto& path : scan.node_paths()) {
         const NodeReader node = scan.node(path);
-        if (node.schema().name != "raybotic.transform" || !node.has_series("pose")) continue;
+        if (node.schema().name != "raybotic.transform" || !node.has_series("pose"))
+            continue;
         FrameGraph::Impl::Edge e;
         e.parent = string_attribute(node, "parent");
         e.child = string_attribute(node, "child");
@@ -171,8 +175,8 @@ std::shared_ptr<FrameGraph::Impl> load_frames(const fs::path& scan_path) {
         const auto r = read_doubles(pose, "rotation");
         for (std::size_t i = 0; i < e.time.size(); ++i) {
             e.translation.push_back({t[3 * i], t[3 * i + 1], t[3 * i + 2]});
-            e.rotation.push_back(
-                detail::normalized(Quat{r[4 * i], r[4 * i + 1], r[4 * i + 2], r[4 * i + 3]}));
+            e.rotation.push_back(detail::normalized(
+                Quat{r[4 * i], r[4 * i + 1], r[4 * i + 2], r[4 * i + 3]}));
         }
         if (impl->by_child.contains(e.child)) {
             throw Error("frame '" + e.child + "' has two parents (" + path + ")");
@@ -186,10 +190,12 @@ std::shared_ptr<FrameGraph::Impl> load_frames(const fs::path& scan_path) {
 
 FrameGraph::FrameGraph(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) {}
 
-FrameGraph FrameGraph::load(const fs::path& scan_path) { return FrameGraph(load_frames(scan_path)); }
+FrameGraph FrameGraph::load(const fs::path& scan_path) {
+    return FrameGraph(load_frames(scan_path));
+}
 
-Pose FrameGraph::lookup(std::string_view parent, std::string_view child, std::int64_t time_ns,
-                        bool* extrapolated) const {
+Pose FrameGraph::lookup(std::string_view parent, std::string_view child,
+                        std::int64_t time_ns, bool* extrapolated) const {
     bool ex = false;
     bool in = false;
     const Pose p = impl_->lookup(parent, child, time_ns, ex, in);
@@ -246,7 +252,8 @@ std::array<double, 12> projection_matrix(const std::array<double, 3>& s,
             r2[0], r2[1], r2[2], -detail::dot(r2, s)};
 }
 
-GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions& options) {
+GeometryResult resolve_geometry(const fs::path& scan_path,
+                                const GeometryOptions& options) {
     const Schema& acq_schema = SchemaRegistry::global().get("raybotic.ct_acquisition/1");
     const std::string acq_path = acq_schema.category + "/" + options.acquisition;
 
@@ -271,8 +278,9 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
         const NodeReader detector = scan.node(detector_path);
         source_frame = options.source_frame.empty() ? string_attribute(source, "frame_id")
                                                     : options.source_frame;
-        detector_frame = options.detector_frame.empty() ? string_attribute(detector, "frame_id")
-                                                        : options.detector_frame;
+        detector_frame = options.detector_frame.empty()
+                             ? string_attribute(detector, "frame_id")
+                             : options.detector_frame;
         if (!detector.has_series("image")) throw Error(detector_path + " has no images");
         const SeriesReader images = detector.series("image");
         image_time = images.time();
@@ -297,7 +305,9 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
         }
         for (const auto& p : scan.node_paths()) {
             const NodeReader node = scan.node(p);
-            if (node.schema().name != "raybotic.robot_arm" || !node.has_series("tracking")) continue;
+            if (node.schema().name != "raybotic.robot_arm" ||
+                !node.has_series("tracking"))
+                continue;
             const std::string target = string_attribute(node, "target_frame");
             if (target != source_frame && target != detector_frame) continue;
             const SeriesReader tr = node.series("tracking");
@@ -348,10 +358,10 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
         std::uint32_t flags = 0;
         bool extrapolated = false;
         bool interpolated = false;
-        const Pose src =
-            graph->lookup(options.world_frame, source_frame, t, extrapolated, interpolated);
-        const Pose det =
-            graph->lookup(options.world_frame, detector_frame, t, extrapolated, interpolated);
+        const Pose src = graph->lookup(options.world_frame, source_frame, t, extrapolated,
+                                       interpolated);
+        const Pose det = graph->lookup(options.world_frame, detector_frame, t,
+                                       extrapolated, interpolated);
         // Detector frame: x = image right (columns), rows run along -y.
         const Vec3 u = detail::rotate(det.rotation, {1.0, 0.0, 0.0});
         const Vec3 v = detail::rotate(det.rotation, {0.0, -1.0, 0.0});
@@ -367,7 +377,8 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
             if (emission[*k] != 2.0) flags |= flag_emission_unstable;  // not EMISSION_ON
         }
         for (const auto& r : robots) {
-            if (auto k = last_at(r.time, t); k && r.status[*k] == 3.0) {  // STATUS_UNREACHABLE
+            if (auto k = last_at(r.time, t);
+                k && r.status[*k] == 3.0) {  // STATUS_UNREACHABLE
                 flags |= flag_robot_unreachable;
             }
         }
@@ -386,9 +397,10 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
         c_px[2 * i] = pu;
         c_px[2 * i + 1] = pv;
         if (options.projection_matrix) {
-            const auto pm =
-                projection_matrix(src.translation, det.translation, u, v, pu, pv, width, height);
-            std::copy(pm.begin(), pm.end(), c_pm.begin() + static_cast<std::ptrdiff_t>(12 * i));
+            const auto pm = projection_matrix(src.translation, det.translation, u, v, pu,
+                                              pv, width, height);
+            std::copy(pm.begin(), pm.end(),
+                      c_pm.begin() + static_cast<std::ptrdiff_t>(12 * i));
         }
         c_flags[i] = flags;
 
@@ -400,14 +412,17 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
 
     // --- write ---------------------------------------------------------------
     h5::init();
-    const fs::path master = fs::is_directory(scan_path) ? scan_path / master_file_name : scan_path;
+    const fs::path master =
+        fs::is_directory(scan_path) ? scan_path / master_file_name : scan_path;
     h5::Lock lock(h5::mutex());
     h5::Id file;
     try {
         file = h5::open_file(detail::utf8(master), H5F_ACC_RDWR);
     } catch (const Error& e) {
-        throw Error(std::string("cannot open the scan for writing; close every reader or writer "
-                                "of it first: ") + e.what());
+        throw Error(
+            std::string("cannot open the scan for writing; close every reader or writer "
+                        "of it first: ") +
+            e.what());
     }
     h5::Id node;
     if (acquisition_exists) {
@@ -420,7 +435,8 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
                                           {"world_frame", options.world_frame}});
     }
     if (h5::exists(node.get(), "projections")) {
-        h5::check(H5Ldelete(node.get(), "projections", H5P_DEFAULT), "H5Ldelete projections");
+        h5::check(H5Ldelete(node.get(), "projections", H5P_DEFAULT),
+                  "H5Ldelete projections");
     }
     h5::Id group = h5::ensure_group(node.get(), "projections");
     h5::write_string_attribute(group.get(), "storage", "inline");
@@ -430,8 +446,8 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
     h5::write_string_attribute(group.get(), "detector_frame", detector_frame);
 
     const auto layout =
-        detail::SeriesLayout::make(acq_schema.get_series("projections"), {}, {}, 256 * 1024,
-                                   std::numeric_limits<std::uint64_t>::max());
+        detail::SeriesLayout::make(acq_schema.get_series("projections"), {}, {},
+                                   256 * 1024, std::numeric_limits<std::uint64_t>::max());
     const CompressionOptions compression{};
     for (const auto& f : layout.fields) {
         const auto per_sample = static_cast<std::size_t>(element_count(f.sample_shape));
@@ -450,7 +466,8 @@ GeometryResult resolve_geometry(const fs::path& scan_path, const GeometryOptions
         dims.insert(dims.end(), f.sample_shape.begin(), f.sample_shape.end());
         h5::check(H5Dset_extent(dset.get(), dims.data()), "H5Dset_extent");
         h5::Id mtype = h5::memory_type(f.dtype);
-        h5::check(H5Dwrite(dset.get(), mtype.get(), H5S_ALL, H5S_ALL, H5P_DEFAULT, buffer.data()),
+        h5::check(H5Dwrite(dset.get(), mtype.get(), H5S_ALL, H5S_ALL, H5P_DEFAULT,
+                           buffer.data()),
                   "writing " + f.name);
     }
     return result;

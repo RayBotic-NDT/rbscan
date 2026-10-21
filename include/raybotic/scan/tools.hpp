@@ -64,7 +64,8 @@ struct ScanSummary {
 /// Reads the structure and the time axes of a scan (not the data).
 [[nodiscard]] RBSCAN_API ScanSummary summarize(const std::filesystem::path& scan);
 /// Human-readable overview; with `attributes` also every node attribute.
-[[nodiscard]] RBSCAN_API std::string to_text(const ScanSummary& summary, bool attributes = false);
+[[nodiscard]] RBSCAN_API std::string to_text(const ScanSummary& summary,
+                                             bool attributes = false);
 [[nodiscard]] RBSCAN_API std::string to_json(const ScanSummary& summary);
 
 // ---------------------------------------------------------------------------
@@ -120,15 +121,15 @@ struct Pose {
 /// The TF tree stored under frames/, with interpolation in time (linear for
 /// translations, slerp for rotations; static frames are constant).
 class RBSCAN_API FrameGraph {
-public:
+  public:
     /// Loads every raybotic.transform node of a scan.
     [[nodiscard]] static FrameGraph load(const std::filesystem::path& scan);
 
     /// Pose of `child` in `parent` at time t. `extrapolated` is set when t lies
     /// outside the recorded range of a dynamic frame on the way (the nearest
     /// sample is used then). Throws if the frames are not connected.
-    [[nodiscard]] Pose lookup(std::string_view parent, std::string_view child, std::int64_t time_ns,
-                              bool* extrapolated = nullptr) const;
+    [[nodiscard]] Pose lookup(std::string_view parent, std::string_view child,
+                              std::int64_t time_ns, bool* extrapolated = nullptr) const;
     [[nodiscard]] bool has_frame(std::string_view frame) const;
     /// All frame names (parents and children).
     [[nodiscard]] std::vector<std::string> frames() const;
@@ -136,7 +137,7 @@ public:
     struct Impl;
     explicit FrameGraph(std::shared_ptr<Impl> impl);
 
-private:
+  private:
     std::shared_ptr<Impl> impl_;
 };
 
@@ -160,7 +161,7 @@ struct GeometryResult {
     std::string acquisition;  ///< node path
     std::uint64_t projections{0};
     std::uint64_t interpolated{0};
-    std::uint64_t extrapolated{0};      ///< flagged invalid (bit 0)
+    std::uint64_t extrapolated{0};       ///< flagged invalid (bit 0)
     std::uint64_t robot_unreachable{0};  ///< bit 2
     std::uint64_t emission_unstable{0};  ///< bit 3
 };
@@ -176,7 +177,8 @@ RBSCAN_API GeometryResult resolve_geometry(const std::filesystem::path& scan,
 /// Projection matrix [3x4] row-major: world point (m) -> (column, row) of a
 /// detector with `width` x `height` pixels whose centre is `detector_position`.
 [[nodiscard]] RBSCAN_API std::array<double, 12> projection_matrix(
-    const std::array<double, 3>& source_position, const std::array<double, 3>& detector_position,
+    const std::array<double, 3>& source_position,
+    const std::array<double, 3>& detector_position,
     const std::array<double, 3>& detector_u, const std::array<double, 3>& detector_v,
     double pixel_u, double pixel_v, std::uint64_t width, std::uint64_t height);
 

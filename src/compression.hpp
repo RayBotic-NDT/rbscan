@@ -23,8 +23,9 @@ std::vector<std::byte> encode_chunk(const std::byte* data, std::size_t size,
 /// Undoes encode_chunk: inflate (if `deflated`), then unshuffle (if
 /// `shuffled`), into exactly `out_size` bytes. Thread-safe; runs without the
 /// HDF5 lock. Throws Error on corrupt data or a size mismatch.
-void decode_chunk(const std::byte* data, std::size_t size, std::byte* out, std::size_t out_size,
-                  std::size_t element_size, bool deflated, bool shuffled);
+void decode_chunk(const std::byte* data, std::size_t size, std::byte* out,
+                  std::size_t out_size, std::size_t element_size, bool deflated,
+                  bool shuffled);
 
 /// Undoes the Bitshuffle+LZ4 filter (header, then LZ4 blocks of bit-shuffled
 /// elements) into exactly `out_size` bytes. Thread-safe; throws Error on

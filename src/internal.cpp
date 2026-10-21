@@ -13,13 +13,16 @@ std::string utf8(const std::filesystem::path& path) {
     return {reinterpret_cast<const char*>(s.data()), s.size()};
 }
 
-std::filesystem::path segment_path(const std::filesystem::path& series_dir, std::uint64_t index) {
+std::filesystem::path segment_path(const std::filesystem::path& series_dir,
+                                   std::uint64_t index) {
     char name[32];
-    std::snprintf(name, sizeof(name), "seg_%06llu.h5", static_cast<unsigned long long>(index));
+    std::snprintf(name, sizeof(name), "seg_%06llu.h5",
+                  static_cast<unsigned long long>(index));
     return series_dir / name;
 }
 
-std::vector<std::filesystem::path> list_segments(const std::filesystem::path& series_dir) {
+std::vector<std::filesystem::path> list_segments(
+    const std::filesystem::path& series_dir) {
     std::vector<std::filesystem::path> out;
     std::error_code ec;
     if (!std::filesystem::is_directory(series_dir, ec)) return out;
@@ -34,13 +37,16 @@ std::vector<std::filesystem::path> list_segments(const std::filesystem::path& se
     return out;
 }
 
-void validate_node(std::string_view name, const Schema& schema, const Attributes& attributes) {
-    const bool name_ok = !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-               c == '_' || c == '-' || c == '.';
-    });
+void validate_node(std::string_view name, const Schema& schema,
+                   const Attributes& attributes) {
+    const bool name_ok =
+        !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
+            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                   (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+        });
     if (!name_ok) {
-        throw Error("invalid node name '" + std::string(name) + "' (letters, digits, _ - .)");
+        throw Error("invalid node name '" + std::string(name) +
+                    "' (letters, digits, _ - .)");
     }
     if (schema.abstract) throw Error("schema " + schema.id() + " is abstract");
     for (const auto& a : schema.attributes) {
@@ -90,7 +96,8 @@ std::string now_iso8601() {
     const auto now = std::chrono::system_clock::now();
     const auto t = std::chrono::system_clock::to_time_t(now);
     const auto ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() %
+        std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+            .count() %
         1000;
     std::tm tm{};
 #ifdef _WIN32
@@ -99,17 +106,18 @@ std::string now_iso8601() {
     gmtime_r(&t, &tm);
 #endif
     char buf[40];
-    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", tm.tm_year + 1900,
-                  tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-                  static_cast<int>(ms));
+    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
+                  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min,
+                  tm.tm_sec, static_cast<int>(ms));
     return buf;
 }
 
 std::string make_uuid() {
     std::random_device rd;
-    std::mt19937_64 gen((static_cast<std::uint64_t>(rd()) << 32) ^ rd() ^
-                        static_cast<std::uint64_t>(
-                            std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+    std::mt19937_64 gen(
+        (static_cast<std::uint64_t>(rd()) << 32) ^ rd() ^
+        static_cast<std::uint64_t>(
+            std::chrono::high_resolution_clock::now().time_since_epoch().count()));
     std::uint64_t hi = gen();
     std::uint64_t lo = gen();
     hi = (hi & 0xFFFFFFFFFFFF0FFFULL) | 0x0000000000004000ULL;  // version 4

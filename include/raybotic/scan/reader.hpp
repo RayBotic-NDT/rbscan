@@ -23,7 +23,7 @@ inline constexpr std::uint64_t all = std::numeric_limits<std::uint64_t>::max();
 /// straight from their segment files (opened SWMR, so a recording in progress
 /// can be read - call refresh() to see new samples).
 class RBSCAN_API SeriesReader {
-public:
+  public:
     /// Reads a segmented series straight from its segment files, without the
     /// master file - e.g. to watch a recording while the master is still open
     /// for writing. Throws if no segment exists yet.
@@ -57,12 +57,12 @@ public:
     struct Impl;
     explicit SeriesReader(std::shared_ptr<Impl> impl);
 
-private:
+  private:
     std::shared_ptr<Impl> impl_;
 };
 
 class RBSCAN_API NodeReader {
-public:
+  public:
     [[nodiscard]] std::string path() const;
     [[nodiscard]] std::string name() const;
     [[nodiscard]] std::string category() const;
@@ -78,12 +78,12 @@ public:
     struct Impl;
     explicit NodeReader(std::shared_ptr<Impl> impl);
 
-private:
+  private:
     std::shared_ptr<Impl> impl_;
 };
 
 class RBSCAN_API ScanReader {
-public:
+  public:
     /// The scan directory or its master file.
     [[nodiscard]] static ScanReader open(const std::filesystem::path& path);
 
@@ -96,13 +96,14 @@ public:
 
     [[nodiscard]] std::vector<std::string> categories() const;
     /// Node paths ("sensors/detector_0"), of one category or all.
-    [[nodiscard]] std::vector<std::string> node_paths(std::string_view category = {}) const;
+    [[nodiscard]] std::vector<std::string> node_paths(
+        std::string_view category = {}) const;
     [[nodiscard]] bool has_node(std::string_view path) const;
     [[nodiscard]] NodeReader node(std::string_view path) const;
 
     struct Impl;
 
-private:
+  private:
     explicit ScanReader(std::shared_ptr<Impl> impl);
     std::shared_ptr<Impl> impl_;
 };

@@ -84,7 +84,8 @@ void write_scan(const std::filesystem::path& dir, int images = 12) {
     {
         auto tracking = robot.series("tracking");
         const double e = 0.0;
-        for (auto [t, status] : {std::pair<std::int64_t, std::uint8_t>{0, 1}, {1000, 3}, {1600, 1}}) {
+        for (auto [t, status] :
+             {std::pair<std::int64_t, std::uint8_t>{0, 1}, {1000, 3}, {1600, 1}}) {
             tracking.append(t, {{"status", rs::scalar(status)},
                                 {"position_error", rs::scalar(e)},
                                 {"orientation_error", rs::scalar(e)}});
@@ -139,11 +140,15 @@ TEST(Geometry, ProjectionMatrixMatchesRayIntersection) {
     const V3 v{0.0, 0.0, -1.0};
     const double pu = 2e-4, pv = 3e-4;
     const auto P = rs::projection_matrix(s, d, u, v, pu, pv, W, H);
-    const V3 n{u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
-    auto dot = [](const V3& a, const V3& b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+    const V3 n{u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
+               u[0] * v[1] - u[1] * v[0]};
+    auto dot = [](const V3& a, const V3& b) {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    };
     for (const V3& x : {V3{0, 0, 0}, V3{0.05, -0.02, 0.03}, V3{-0.1, 0.1, -0.02}}) {
         const V3 dir{x[0] - s[0], x[1] - s[1], x[2] - s[2]};
-        const double lambda = dot(V3{d[0] - s[0], d[1] - s[1], d[2] - s[2]}, n) / dot(dir, n);
+        const double lambda =
+            dot(V3{d[0] - s[0], d[1] - s[1], d[2] - s[2]}, n) / dot(dir, n);
         const V3 p{s[0] + lambda * dir[0] - d[0], s[1] + lambda * dir[1] - d[1],
                    s[2] + lambda * dir[2] - d[2]};
         const double col = dot(p, u) / pu + 0.5 * (W - 1);
@@ -172,13 +177,18 @@ TEST(Geometry, FrameGraphInterpolatesAndChains) {
         auto tool = add("tool", "base", false);
         auto cam = add("cam", "world", true);
         const double t_base[3] = {1, 0, 0}, id[4] = {0, 0, 0, 1};
-        const double rz90[4] = {0, 0, std::sin(std::numbers::pi / 4), std::cos(std::numbers::pi / 4)};
-        base.append(0, {{"translation", rs::view(t_base, {3})}, {"rotation", rs::view(rz90, {4})}});
+        const double rz90[4] = {0, 0, std::sin(std::numbers::pi / 4),
+                                std::cos(std::numbers::pi / 4)};
+        base.append(0, {{"translation", rs::view(t_base, {3})},
+                        {"rotation", rs::view(rz90, {4})}});
         const double t0[3] = {0, 0, 0}, t1[3] = {0, 2, 0};
-        tool.append(0, {{"translation", rs::view(t0, {3})}, {"rotation", rs::view(id, {4})}});
-        tool.append(100, {{"translation", rs::view(t1, {3})}, {"rotation", rs::view(rz90, {4})}});
+        tool.append(
+            0, {{"translation", rs::view(t0, {3})}, {"rotation", rs::view(id, {4})}});
+        tool.append(
+            100, {{"translation", rs::view(t1, {3})}, {"rotation", rs::view(rz90, {4})}});
         const double t_cam[3] = {0, 0, 5};
-        cam.append(0, {{"translation", rs::view(t_cam, {3})}, {"rotation", rs::view(id, {4})}});
+        cam.append(
+            0, {{"translation", rs::view(t_cam, {3})}, {"rotation", rs::view(id, {4})}});
     }
     const auto g = rs::FrameGraph::load(dir.path());
     EXPECT_TRUE(g.has_frame("world"));
@@ -217,7 +227,8 @@ TEST(Geometry, ResolveGeometryFromFrames) {
     {  // the reader must be closed before the scan is written again
         const auto scan = rs::ScanReader::open(dir.path());
         const auto acq = scan.node("acquisitions/scan_0");
-        EXPECT_EQ(std::get<std::string>(*acq.attribute("detector")), "sensors/detector_0");
+        EXPECT_EQ(std::get<std::string>(*acq.attribute("detector")),
+                  "sensors/detector_0");
         const auto p = acq.series("projections");
         ASSERT_EQ(p.size(), 12u);
         const auto src = doubles(p, "source_position");
@@ -267,8 +278,9 @@ TEST(Tools, SummarizeCountsSamplesAndBytes) {
     EXPECT_TRUE(s.complete);
     EXPECT_GT(s.raw_bytes, 12u * W * H * 2);
     EXPECT_GT(s.stored_bytes, 0u);
-    const auto it = std::find_if(s.nodes.begin(), s.nodes.end(),
-                                 [](const auto& n) { return n.path == "sensors/detector_0"; });
+    const auto it = std::find_if(s.nodes.begin(), s.nodes.end(), [](const auto& n) {
+        return n.path == "sensors/detector_0";
+    });
     ASSERT_NE(it, s.nodes.end());
     const auto& image = it->series.front();
     EXPECT_EQ(image.name, "image");
@@ -297,8 +309,8 @@ TEST(Tools, ValidateFindsBrokenSegmentsAndReferences) {
 
     // 1) a segment added after finalize is not linked.
     {
-        auto w = rs::SegmentedSeriesWriter::open(dir.path(), "sensors/camera_0", "raybotic.camera",
-                                                 "image", {}, {},
+        auto w = rs::SegmentedSeriesWriter::open(dir.path(), "sensors/camera_0",
+                                                 "raybotic.camera", "image", {}, {},
                                                  {{"frame_id", std::string("cam")},
                                                   {"simulated", true},
                                                   {"width", std::int64_t{2}},
@@ -315,8 +327,9 @@ TEST(Tools, ValidateFindsBrokenSegmentsAndReferences) {
     EXPECT_FALSE(r.ok());
     const auto text = rs::to_text(r);
     EXPECT_NE(text.find("out of sequence"), std::string::npos) << text;
-    EXPECT_NE(text.find("sensors/camera_0: has segments on disk but is not in the master"),
-              std::string::npos)
+    EXPECT_NE(
+        text.find("sensors/camera_0: has segments on disk but is not in the master"),
+        std::string::npos)
         << text;
     EXPECT_NE(text.find("image_index values beyond"), std::string::npos) << text;
     EXPECT_NE(rs::to_json(r).find("\"ok\": false"), std::string::npos);

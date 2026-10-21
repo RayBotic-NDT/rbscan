@@ -18,7 +18,8 @@ namespace rs = raybotic::scan;
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: %s <scan_dir> [node] [series] [field] [threads,...]\n",
+        std::fprintf(stderr,
+                     "usage: %s <scan_dir> [node] [series] [field] [threads,...]\n",
                      argv[0]);
         return 2;
     }
@@ -39,7 +40,8 @@ int main(int argc, char** argv) {
         const std::uint64_t n = reader.size();
         const auto shape = reader.sample_shape(field);
         const double sample_mb =
-            static_cast<double>(rs::element_count(shape) * rs::dtype_size(reader.dtype(field))) /
+            static_cast<double>(rs::element_count(shape) *
+                                rs::dtype_size(reader.dtype(field))) /
             1e6;
         std::printf("%llu samples of %.1f MB (%s)\n", static_cast<unsigned long long>(n),
                     sample_mb, std::string(rs::to_string(reader.dtype(field))).c_str());
@@ -58,15 +60,18 @@ int main(int argc, char** argv) {
             }
             for (auto& t : pool) t.join();
             const double s =
-                std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-            std::printf("  read_sample, %2u threads: %6.0f MB/s  %6.1f samples/s\n", threads,
-                        sample_mb * static_cast<double>(n) / s, static_cast<double>(n) / s);
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
+                    .count();
+            std::printf("  read_sample, %2u threads: %6.0f MB/s  %6.1f samples/s\n",
+                        threads, sample_mb * static_cast<double>(n) / s,
+                        static_cast<double>(n) / s);
         }
 
         const auto start = std::chrono::steady_clock::now();
         const auto all = reader.read(field);
         const double s =
-            std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
+                .count();
         std::printf("  read (all at once):      %6.0f MB/s\n",
                     static_cast<double>(all.byte_size()) / 1e6 / s);
     } catch (const std::exception& e) {

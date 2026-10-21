@@ -79,7 +79,8 @@ struct SeriesSpec {
 struct Schema {
     std::string name;  ///< e.g. raybotic.xray_detector
     std::uint32_t version{1};
-    std::string category;  ///< top-level group: sensors, robots, frames, acquisitions, ...
+    std::string
+        category;  ///< top-level group: sensors, robots, frames, acquisitions, ...
     std::string description;
     bool abstract{false};
     std::vector<AttributeSpec> attributes;
@@ -87,10 +88,13 @@ struct Schema {
 
     /// name/version, e.g. raybotic.xray_detector/1.
     [[nodiscard]] RBSCAN_API std::string id() const;
-    [[nodiscard]] RBSCAN_API const AttributeSpec* attribute(std::string_view attr_name) const;
-    [[nodiscard]] RBSCAN_API const SeriesSpec* find_series(std::string_view series_name) const;
+    [[nodiscard]] RBSCAN_API const AttributeSpec* attribute(
+        std::string_view attr_name) const;
+    [[nodiscard]] RBSCAN_API const SeriesSpec* find_series(
+        std::string_view series_name) const;
     /// Throws Error if the series does not exist.
-    [[nodiscard]] RBSCAN_API const SeriesSpec& get_series(std::string_view series_name) const;
+    [[nodiscard]] RBSCAN_API const SeriesSpec& get_series(
+        std::string_view series_name) const;
 
     /// Flat JSON of this schema; stored in every node so files describe
     /// themselves without the registry.
@@ -103,7 +107,7 @@ RBSCAN_SUPPRESS_DLL_WARNINGS_BEGIN
 /// the library (schemas/*.json) and with every *.json in the directories listed
 /// in the RBSCAN_SCHEMA_PATH environment variable.
 class RBSCAN_API SchemaRegistry {
-public:
+  public:
     static SchemaRegistry& global();
 
     /// Parses and adds a schema; "extends" must name a schema already known.
@@ -124,7 +128,7 @@ public:
     SchemaRegistry(const SchemaRegistry&) = delete;
     SchemaRegistry& operator=(const SchemaRegistry&) = delete;
 
-private:
+  private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

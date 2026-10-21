@@ -11,7 +11,7 @@ namespace raybotic::scan::detail {
 /// chunk bytes outside the HDF5 lock. Reads from several threads at once are
 /// fine.
 class RawFile {
-public:
+  public:
     /// nullptr if the file cannot be opened.
     static std::shared_ptr<RawFile> open(const std::filesystem::path& path);
     ~RawFile();
@@ -21,7 +21,7 @@ public:
     /// Reads exactly `size` bytes at `offset`; false on a short read or error.
     bool read(std::uint64_t offset, std::byte* out, std::size_t size) const;
 
-private:
+  private:
     RawFile() = default;
 #ifdef _WIN32
     void* handle_{nullptr};

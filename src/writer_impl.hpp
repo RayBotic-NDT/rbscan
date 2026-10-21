@@ -99,7 +99,7 @@ struct SegmentedSeriesWriter::Impl {
     std::vector<h5::Id> datasets;
     std::uint64_t open_segment{std::numeric_limits<std::uint64_t>::max()};
 
-private:
+  private:
     void submit_chunk(std::size_t field, std::uint64_t chunk_index, std::uint64_t valid,
                       detail::ChunkBuffer buffer);
     void submit_partials(bool copy);
@@ -117,7 +117,8 @@ struct NodeWriter::Impl {
     h5::Id group;
     Attributes attributes;
     std::map<std::string, std::shared_ptr<SeriesWriter::Impl>, std::less<>> inline_series;
-    std::map<std::string, std::shared_ptr<SegmentedSeriesWriter::Impl>, std::less<>> segmented;
+    std::map<std::string, std::shared_ptr<SegmentedSeriesWriter::Impl>, std::less<>>
+        segmented;
 
     std::shared_ptr<ScanWriter::Impl> lock_scan() const;
 };

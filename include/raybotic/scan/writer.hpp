@@ -86,7 +86,7 @@ struct ScanInfo {
 /// Handles are cheap to copy and share one writer. One writer must be used by
 /// one thread at a time; different writers may run on different threads.
 class RBSCAN_API SeriesWriter {
-public:
+  public:
     /// Every non-optional field must be given; values are converted to the
     /// field's dtype and must have the field's element count.
     void append(std::int64_t time_ns, std::span<const FieldValue> fields);
@@ -102,7 +102,7 @@ public:
     struct Impl;
     explicit SeriesWriter(std::shared_ptr<Impl> impl);
 
-private:
+  private:
     std::shared_ptr<Impl> impl_;
 };
 
@@ -117,17 +117,14 @@ private:
 /// open() while another one writes the master. ScanWriter::finalize() (or
 /// rebuild()) links all segments it finds into the master.
 class RBSCAN_API SegmentedSeriesWriter {
-public:
+  public:
     /// Writer for a node created by a ScanWriter in another process (or not at
     /// all yet). schema_id must be known to SchemaRegistry::global(); dims not
     /// given are resolved from `attributes`.
-    [[nodiscard]] static SegmentedSeriesWriter open(const std::filesystem::path& scan_dir,
-                                                    std::string_view node_path,
-                                                    std::string_view schema_id,
-                                                    std::string_view series,
-                                                    const Dims& dims = {},
-                                                    const SegmentOptions& options = {},
-                                                    const Attributes& attributes = {});
+    [[nodiscard]] static SegmentedSeriesWriter open(
+        const std::filesystem::path& scan_dir, std::string_view node_path,
+        std::string_view schema_id, std::string_view series, const Dims& dims = {},
+        const SegmentOptions& options = {}, const Attributes& attributes = {});
 
     void append(std::int64_t time_ns, std::span<const FieldValue> fields);
     void append(std::int64_t time_ns, std::initializer_list<FieldValue> fields) {
@@ -146,13 +143,13 @@ public:
     struct Impl;
     explicit SegmentedSeriesWriter(std::shared_ptr<Impl> impl);
 
-private:
+  private:
     std::shared_ptr<Impl> impl_;
 };
 
 /// A node in the master file: sensors/<name>, robots/<name>, ...
 class RBSCAN_API NodeWriter {
-public:
+  public:
     [[nodiscard]] std::string path() const;
     [[nodiscard]] const Schema& schema() const;
 
@@ -165,14 +162,13 @@ public:
                                       const InlineOptions& options = {});
     /// The writer of a segmented series; the same writer on every call. It is
     /// closed by ScanWriter::finalize().
-    [[nodiscard]] SegmentedSeriesWriter segmented_series(std::string_view name,
-                                                         const Dims& dims = {},
-                                                         const SegmentOptions& options = {});
+    [[nodiscard]] SegmentedSeriesWriter segmented_series(
+        std::string_view name, const Dims& dims = {}, const SegmentOptions& options = {});
 
     struct Impl;
     explicit NodeWriter(std::shared_ptr<Impl> impl);
 
-private:
+  private:
     std::shared_ptr<Impl> impl_;
 };
 
@@ -184,10 +180,11 @@ private:
 ///   images.append(t, {{"image", view(pixels, {h, w})}});
 ///   scan.finalize();
 class RBSCAN_API ScanWriter {
-public:
+  public:
     /// Fails if the directory already holds a master file, unless overwrite.
     [[nodiscard]] static ScanWriter create(const std::filesystem::path& scan_dir,
-                                           const ScanInfo& info = {}, bool overwrite = false);
+                                           const ScanInfo& info = {},
+                                           bool overwrite = false);
 
     /// Opens an existing scan to add or replace nodes (annotations, results,
     /// a resolved geometry, ...). finalize() relinks segments and keeps the
@@ -228,7 +225,7 @@ public:
 
     struct Impl;
 
-private:
+  private:
     explicit ScanWriter(std::shared_ptr<Impl> impl);
     std::shared_ptr<Impl> impl_;
 };

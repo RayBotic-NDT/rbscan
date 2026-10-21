@@ -42,16 +42,21 @@ std::size_t dtype_size(DType dtype) {
     switch (dtype) {
         case DType::Bool:
         case DType::Int8:
-        case DType::UInt8: return 1;
+        case DType::UInt8:
+            return 1;
         case DType::Int16:
-        case DType::UInt16: return 2;
+        case DType::UInt16:
+            return 2;
         case DType::Int32:
         case DType::UInt32:
-        case DType::Float32: return 4;
+        case DType::Float32:
+            return 4;
         case DType::Int64:
         case DType::UInt64:
-        case DType::Float64: return 8;
-        case DType::String: return 0;
+        case DType::Float64:
+            return 8;
+        case DType::String:
+            return 0;
     }
     return 0;
 }
@@ -65,7 +70,8 @@ std::string to_string(const Value& value) {
                 out << (v ? "true" : "false");
             } else if constexpr (std::is_same_v<T, std::string>) {
                 out << '"' << v << '"';
-            } else if constexpr (std::is_same_v<T, std::int64_t> || std::is_same_v<T, double>) {
+            } else if constexpr (std::is_same_v<T, std::int64_t> ||
+                                 std::is_same_v<T, double>) {
                 out << v;
             } else {
                 out << '[';

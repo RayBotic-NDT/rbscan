@@ -25,7 +25,8 @@ std::uint64_t resolve_dim(const DimSpec& dim, const Dims& dims, const Attributes
         if (const auto* a = std::get_if<std::vector<std::string>>(&v); a && !a->empty()) {
             return a->size();
         }
-        if (const auto* a = std::get_if<std::vector<std::int64_t>>(&v); a && !a->empty()) {
+        if (const auto* a = std::get_if<std::vector<std::int64_t>>(&v);
+            a && !a->empty()) {
             return a->size();
         }
         if (const auto* a = std::get_if<std::vector<double>>(&v); a && !a->empty()) {
@@ -38,8 +39,9 @@ std::uint64_t resolve_dim(const DimSpec& dim, const Dims& dims, const Attributes
 
 }  // namespace
 
-SeriesLayout SeriesLayout::make(const SeriesSpec& spec, const Dims& dims, const Attributes& node,
-                                std::size_t chunk_bytes, std::uint64_t max_chunk_samples,
+SeriesLayout SeriesLayout::make(const SeriesSpec& spec, const Dims& dims,
+                                const Attributes& node, std::size_t chunk_bytes,
+                                std::uint64_t max_chunk_samples,
                                 const FieldTypes& types) {
     for (const auto& [name, type] : types) {
         const FieldSpec* f = spec.field(name);
@@ -54,11 +56,12 @@ SeriesLayout SeriesLayout::make(const SeriesSpec& spec, const Dims& dims, const 
     SeriesLayout layout;
     layout.spec = spec;
     auto add = [&](FieldLayout f) {
-        f.sample_bytes = static_cast<std::size_t>(element_count(f.sample_shape)) *
-                         dtype_size(f.dtype);
-        const std::uint64_t per_chunk =
-            std::max<std::uint64_t>(1, chunk_bytes / std::max<std::size_t>(1, f.sample_bytes));
-        f.chunk_samples = std::max<std::uint64_t>(1, std::min(per_chunk, max_chunk_samples));
+        f.sample_bytes =
+            static_cast<std::size_t>(element_count(f.sample_shape)) * dtype_size(f.dtype);
+        const std::uint64_t per_chunk = std::max<std::uint64_t>(
+            1, chunk_bytes / std::max<std::size_t>(1, f.sample_bytes));
+        f.chunk_samples =
+            std::max<std::uint64_t>(1, std::min(per_chunk, max_chunk_samples));
         layout.fields.push_back(std::move(f));
     };
     FieldLayout time;
@@ -93,7 +96,8 @@ std::size_t SeriesLayout::index(std::string_view name) const {
 Shape SeriesLayout::sample_shape(std::string_view name) const {
     const auto i = index(name);
     if (i == std::string::npos) {
-        throw Error("series '" + spec.name + "' has no field '" + std::string(name) + "'");
+        throw Error("series '" + spec.name + "' has no field '" + std::string(name) +
+                    "'");
     }
     return fields[i].sample_shape;
 }
@@ -138,15 +142,18 @@ void stage_sample(const SeriesLayout& layout, std::vector<ChunkBuffer>& buffers,
         if (given[i]) continue;
         const auto& f = layout.fields[i];
         if (!f.optional) {
-            throw Error("series '" + layout.spec.name + "': field '" + f.name + "' is missing");
+            throw Error("series '" + layout.spec.name + "': field '" + f.name +
+                        "' is missing");
         }
-        fill_missing(f.dtype, slot_ptr(i), static_cast<std::size_t>(element_count(f.sample_shape)));
+        fill_missing(f.dtype, slot_ptr(i),
+                     static_cast<std::size_t>(element_count(f.sample_shape)));
     }
 }
 
 void zero_tail(const FieldLayout& field, std::byte* buffer, std::uint64_t valid) {
     const std::size_t used = static_cast<std::size_t>(valid) * field.sample_bytes;
-    if (used < field.chunk_bytes()) std::memset(buffer + used, 0, field.chunk_bytes() - used);
+    if (used < field.chunk_bytes())
+        std::memset(buffer + used, 0, field.chunk_bytes() - used);
 }
 
 h5::Id create_field_dataset(hid_t loc, const FieldLayout& field,
@@ -172,7 +179,8 @@ h5::Id create_field_dataset(hid_t loc, const FieldLayout& field,
     h5::Id dset(h5::check_id(H5Dcreate2(loc, field.name.c_str(), type.get(), space.get(),
                                         H5P_DEFAULT, dcpl.get(), H5P_DEFAULT),
                              "creating dataset " + field.name));
-    if (!field.units.empty()) h5::write_string_attribute(dset.get(), "units", field.units);
+    if (!field.units.empty())
+        h5::write_string_attribute(dset.get(), "units", field.units);
     if (!field.description.empty()) {
         h5::write_string_attribute(dset.get(), "description", field.description);
     }

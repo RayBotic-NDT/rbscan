@@ -101,10 +101,13 @@ int main(int argc, char** argv) {
             const Args a = parse(argc, argv, {"--time-tolerance"});
             rs::ValidateOptions o;
             o.check_values = !a.has("--no-values");
-            if (auto t = a.value("--time-tolerance"); !t.empty()) o.time_tolerance_s = std::stod(t);
+            if (auto t = a.value("--time-tolerance"); !t.empty())
+                o.time_tolerance_s = std::stod(t);
             const auto report = rs::validate(scan_arg(a), o);
-            std::fputs((a.has("--json") ? rs::to_json(report) + "\n" : rs::to_text(report)).c_str(),
-                       stdout);
+            std::fputs(
+                (a.has("--json") ? rs::to_json(report) + "\n" : rs::to_text(report))
+                    .c_str(),
+                stdout);
             return report.ok() ? 0 : 1;
         }
         if (command == "resolve-geometry") {
@@ -121,14 +124,15 @@ int main(int argc, char** argv) {
             o.projection_matrix = !a.has("--no-matrix");
             o.overwrite = a.has("--overwrite");
             const auto r = rs::resolve_geometry(scan_arg(a), o);
-            std::printf("%s/projections: %llu projections, %llu interpolated, %llu invalid "
-                        "(outside the recorded frames), %llu robot unreachable, %llu emission "
-                        "unstable\n",
-                        r.acquisition.c_str(), static_cast<unsigned long long>(r.projections),
-                        static_cast<unsigned long long>(r.interpolated),
-                        static_cast<unsigned long long>(r.extrapolated),
-                        static_cast<unsigned long long>(r.robot_unreachable),
-                        static_cast<unsigned long long>(r.emission_unstable));
+            std::printf(
+                "%s/projections: %llu projections, %llu interpolated, %llu invalid "
+                "(outside the recorded frames), %llu robot unreachable, %llu emission "
+                "unstable\n",
+                r.acquisition.c_str(), static_cast<unsigned long long>(r.projections),
+                static_cast<unsigned long long>(r.interpolated),
+                static_cast<unsigned long long>(r.extrapolated),
+                static_cast<unsigned long long>(r.robot_unreachable),
+                static_cast<unsigned long long>(r.emission_unstable));
             return 0;
         }
         if (command == "rebuild") {
@@ -146,7 +150,9 @@ int main(int argc, char** argv) {
                                 s.abstract ? "(abstract)" : "");
                 }
             } else {
-                std::printf("%s\n", rs::SchemaRegistry::global().get(a.positional[0]).to_json().c_str());
+                std::printf(
+                    "%s\n",
+                    rs::SchemaRegistry::global().get(a.positional[0]).to_json().c_str());
             }
             return 0;
         }

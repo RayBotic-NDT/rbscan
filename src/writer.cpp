@@ -12,7 +12,8 @@ namespace fs = std::filesystem;
 // ---------------------------------------------------------------------------
 // SeriesWriter (inline, in the master file)
 
-void SeriesWriter::Impl::append(std::int64_t time_ns, std::span<const FieldValue> fields) {
+void SeriesWriter::Impl::append(std::int64_t time_ns,
+                                std::span<const FieldValue> fields) {
     if (closed) throw Error("series '" + layout.spec.name + "': the scan is finalized");
     if (time_ns < last_time) {
         throw Error("series '" + layout.spec.name + "': time must not decrease");
@@ -28,7 +29,8 @@ void SeriesWriter::Impl::append(std::int64_t time_ns, std::span<const FieldValue
         if (total % f.chunk_samples != 0) continue;
         const auto encoded = detail::encode_chunk(buffers[i].get(), f.chunk_bytes(),
                                                   dtype_size(f.dtype), compression);
-        detail::write_chunk(datasets[i].get(), f, (total - 1) / f.chunk_samples, total, encoded);
+        detail::write_chunk(datasets[i].get(), f, (total - 1) / f.chunk_samples, total,
+                            encoded);
     }
 }
 
@@ -41,7 +43,8 @@ void SeriesWriter::Impl::flush() {
         detail::zero_tail(f, buffers[i].get(), fill);
         const auto encoded = detail::encode_chunk(buffers[i].get(), f.chunk_bytes(),
                                                   dtype_size(f.dtype), compression);
-        detail::write_chunk(datasets[i].get(), f, total / f.chunk_samples, total, encoded);
+        detail::write_chunk(datasets[i].get(), f, total / f.chunk_samples, total,
+                            encoded);
     }
     flushed_total = total;
 }
@@ -108,28 +111,30 @@ SeriesWriter NodeWriter::series(std::string_view name, const Dims& dims,
     auto s = std::make_shared<SeriesWriter::Impl>();
     s->scan = scan;
     s->compression = options.compression;
-    s->layout = detail::SeriesLayout::make(spec, dims, impl_->attributes, options.chunk_bytes,
-                                           std::numeric_limits<std::uint64_t>::max(),
-                                           options.dtypes);
+    s->layout = detail::SeriesLayout::make(
+        spec, dims, impl_->attributes, options.chunk_bytes,
+        std::numeric_limits<std::uint64_t>::max(), options.dtypes);
     h5::Lock lock(h5::mutex());
     s->group = h5::ensure_group(impl_->group.get(), spec.name);
     h5::write_string_attribute(s->group.get(), "storage", "inline");
     for (const auto& f : s->layout.fields) {
-        s->datasets.push_back(detail::create_field_dataset(s->group.get(), f, s->compression));
+        s->datasets.push_back(
+            detail::create_field_dataset(s->group.get(), f, s->compression));
     }
     impl_->inline_series.emplace(spec.name, s);
     return SeriesWriter(s);
 }
 
-SegmentedSeriesWriter NodeWriter::segmented_series(std::string_view name, const Dims& dims,
+SegmentedSeriesWriter NodeWriter::segmented_series(std::string_view name,
+                                                   const Dims& dims,
                                                    const SegmentOptions& options) {
     auto scan = impl_->lock_scan();
     if (auto it = impl_->segmented.find(name); it != impl_->segmented.end()) {
         return SegmentedSeriesWriter(it->second);
     }
-    auto s = std::make_shared<SegmentedSeriesWriter::Impl>(scan->dir, impl_->path,
-                                                           *impl_->schema, std::string(name),
-                                                           dims, options, impl_->attributes);
+    auto s = std::make_shared<SegmentedSeriesWriter::Impl>(
+        scan->dir, impl_->path, *impl_->schema, std::string(name), dims, options,
+        impl_->attributes);
     impl_->segmented.emplace(std::string(name), s);
     return SegmentedSeriesWriter(s);
 }
@@ -204,7 +209,8 @@ ScanWriter::~ScanWriter() {
     }
 }
 
-ScanWriter ScanWriter::create(const fs::path& scan_dir, const ScanInfo& info, bool overwrite) {
+ScanWriter ScanWriter::create(const fs::path& scan_dir, const ScanInfo& info,
+                              bool overwrite) {
     h5::init();
     fs::create_directories(scan_dir);
     const fs::path master = scan_dir / master_file_name;
@@ -221,7 +227,8 @@ ScanWriter ScanWriter::create(const fs::path& scan_dir, const ScanInfo& info, bo
                 if (!node.is_directory()) continue;
                 for (const auto& series : fs::directory_iterator(node.path(), ec)) {
                     if (!series.is_directory()) continue;
-                    for (const auto& seg : detail::list_segments(series.path())) fs::remove(seg);
+                    for (const auto& seg : detail::list_segments(series.path()))
+                        fs::remove(seg);
                     fs::remove(series.path(), ec);  // only if empty now
                 }
                 fs::remove(node.path(), ec);
@@ -240,9 +247,12 @@ ScanWriter ScanWriter::create(const fs::path& scan_dir, const ScanInfo& info, bo
     h5::write_string_attribute(f, "created", detail::now_iso8601());
     h5::write_string_attribute(f, "software", std::string("rbscan ") + version());
     h5::write_attribute(f, "complete", Value(false), DType::Bool);
-    if (!info.description.empty()) h5::write_string_attribute(f, "description", info.description);
-    if (!info.operator_name.empty()) h5::write_string_attribute(f, "operator", info.operator_name);
-    if (!info.sample_id.empty()) h5::write_string_attribute(f, "sample_id", info.sample_id);
+    if (!info.description.empty())
+        h5::write_string_attribute(f, "description", info.description);
+    if (!info.operator_name.empty())
+        h5::write_string_attribute(f, "operator", info.operator_name);
+    if (!info.sample_id.empty())
+        h5::write_string_attribute(f, "sample_id", info.sample_id);
     for (const auto& [name, value] : info.extra) h5::write_attribute(f, name, value);
     return ScanWriter(std::move(impl));
 }
@@ -257,16 +267,18 @@ ScanWriter ScanWriter::open(const fs::path& scan_dir) {
     try {
         impl->file = h5::open_file(detail::utf8(master), H5F_ACC_RDWR);
     } catch (const Error& e) {
-        throw Error(std::string("cannot open the scan for writing; close every reader or writer "
-                                "of it first: ") +
-                    e.what());
+        throw Error(
+            std::string("cannot open the scan for writing; close every reader or writer "
+                        "of it first: ") +
+            e.what());
     }
     if (h5::read_string_attribute(impl->file.get(), "format") != format_name) {
-        throw Error(detail::utf8(master) + " is not a " + std::string(format_name) + " file");
+        throw Error(detail::utf8(master) + " is not a " + std::string(format_name) +
+                    " file");
     }
     const auto complete = h5::read_attribute(impl->file.get(), "complete");
-    impl->mark_complete = complete && std::holds_alternative<bool>(*complete) &&
-                          std::get<bool>(*complete);
+    impl->mark_complete =
+        complete && std::holds_alternative<bool>(*complete) && std::get<bool>(*complete);
     return ScanWriter(std::move(impl));
 }
 
@@ -286,8 +298,8 @@ void ScanWriter::remove_node(std::string_view path) {
     std::error_code ec;
     for (const auto& series : fs::directory_iterator(impl_->dir / fs::path(p), ec)) {
         if (series.is_directory() && !detail::list_segments(series.path()).empty()) {
-            throw Error("node '" + p + "' has segment files in " + detail::utf8(series.path()) +
-                        "; delete them first");
+            throw Error("node '" + p + "' has segment files in " +
+                        detail::utf8(series.path()) + "; delete them first");
         }
     }
     h5::Lock lock(h5::mutex());
@@ -305,7 +317,8 @@ NodeWriter ScanWriter::add_node(std::string_view name, std::string_view schema_i
     node->path = schema.category + "/" + std::string(name);
     node->schema = &schema;
     node->attributes = attributes;
-    node->group = detail::create_node_group(impl_->file.get(), node->path, schema, attributes);
+    node->group =
+        detail::create_node_group(impl_->file.get(), node->path, schema, attributes);
     impl_->nodes.push_back(node);
     return NodeWriter(node);
 }
@@ -333,7 +346,8 @@ fs::path ScanWriter::directory() const { return impl_->dir; }
 
 void ScanWriter::rebuild(const fs::path& scan_dir) {
     h5::init();
-    const fs::path master = fs::is_directory(scan_dir) ? scan_dir / master_file_name : scan_dir;
+    const fs::path master =
+        fs::is_directory(scan_dir) ? scan_dir / master_file_name : scan_dir;
     h5::Lock lock(h5::mutex());
     h5::Id file = h5::open_file(detail::utf8(master), H5F_ACC_RDWR);
     detail::link_all_segments(file.get(), master.parent_path());
@@ -346,7 +360,8 @@ const char* version() { return RBSCAN_VERSION; }
 std::string hdf5_version() {
     unsigned major = 0, minor = 0, release = 0;
     H5get_libversion(&major, &minor, &release);
-    return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(release);
+    return std::to_string(major) + "." + std::to_string(minor) + "." +
+           std::to_string(release);
 }
 
 }  // namespace raybotic::scan

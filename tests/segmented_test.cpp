@@ -45,7 +45,8 @@ void check_images(const rs::SeriesReader& s, std::uint64_t n) {
         ASSERT_EQ(px[i * H * W + (H - 1) * W + (W - 1)], pixel(i, H - 1, W - 1)) << i;
     }
     const auto t = s.time();
-    for (std::uint64_t i = 0; i < n; ++i) ASSERT_EQ(t[i], static_cast<std::int64_t>(1000 * i));
+    for (std::uint64_t i = 0; i < n; ++i)
+        ASSERT_EQ(t[i], static_cast<std::int64_t>(1000 * i));
 }
 
 }  // namespace
@@ -57,7 +58,8 @@ TEST_P(SegmentedCompression, SplitsIntoSegmentsAndReadsBack) {
     constexpr std::uint64_t n = 23;
     {
         auto scan = rs::ScanWriter::create(dir.path());
-        auto det = scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
+        auto det =
+            scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
         rs::SegmentOptions opt;
         opt.segment_size = 5;
         opt.threads = 4;
@@ -91,7 +93,8 @@ TEST_P(SegmentedCompression, SplitsIntoSegmentsAndReadsBack) {
 }
 
 INSTANTIATE_TEST_SUITE_P(All, SegmentedCompression,
-                         ::testing::Values(rs::Compression::None, rs::Compression::Deflate,
+                         ::testing::Values(rs::Compression::None,
+                                           rs::Compression::Deflate,
                                            rs::Compression::ShuffleDeflate,
                                            rs::Compression::BitshuffleLZ4));
 
@@ -100,11 +103,13 @@ TEST(Segmented, CompressionShrinksSmoothImages) {
     std::uint64_t raw = 0;
     {
         auto scan = rs::ScanWriter::create(dir.path());
-        auto det = scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
+        auto det =
+            scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
         auto images = det.segmented_series("image", {{"height", H}, {"width", W}});
         for (std::uint64_t i = 0; i < 10; ++i) {
             const auto img = image(i);
-            images.append(static_cast<std::int64_t>(i), {{"image", rs::view(img.data(), {H, W})}});
+            images.append(static_cast<std::int64_t>(i),
+                          {{"image", rs::view(img.data(), {H, W})}});
             raw += H * W * 2;
         }
     }
@@ -115,30 +120,35 @@ TEST(Segmented, CompressionShrinksSmoothImages) {
 TEST(Segmented, LiveReadWhileRecording) {
     TempDir dir;
     auto scan = rs::ScanWriter::create(dir.path());
-    auto det = scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
+    auto det =
+        scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
     rs::SegmentOptions opt;
     opt.segment_size = 4;
     opt.flush_every = 0;
     auto images = det.segmented_series("image", {{"height", H}, {"width", W}}, opt);
     for (std::uint64_t i = 0; i < 6; ++i) {
         const auto img = image(i);
-        images.append(static_cast<std::int64_t>(1000 * i), {{"image", rs::view(img.data(), {H, W})}});
+        images.append(static_cast<std::int64_t>(1000 * i),
+                      {{"image", rs::view(img.data(), {H, W})}});
     }
     images.flush();
 
     // The master is still open for writing, so read the segments directly;
     // the second segment is open in SWMR mode.
-    auto live = rs::SeriesReader::open_segments(dir.path(), "sensors/detector_0", "image");
+    auto live =
+        rs::SeriesReader::open_segments(dir.path(), "sensors/detector_0", "image");
     check_images(live, 6);
     for (std::uint64_t i = 6; i < 9; ++i) {
         const auto img = image(i);
-        images.append(static_cast<std::int64_t>(1000 * i), {{"image", rs::view(img.data(), {H, W})}});
+        images.append(static_cast<std::int64_t>(1000 * i),
+                      {{"image", rs::view(img.data(), {H, W})}});
     }
     images.flush();
     live.refresh();
     check_images(live, 9);
     scan.finalize();
-    check_images(rs::ScanReader::open(dir.path()).node("sensors/detector_0").series("image"), 9);
+    check_images(
+        rs::ScanReader::open(dir.path()).node("sensors/detector_0").series("image"), 9);
 }
 
 TEST(Segmented, OtherProcessWriterIsLinkedOnFinalize) {
@@ -154,7 +164,8 @@ TEST(Segmented, OtherProcessWriterIsLinkedOnFinalize) {
                                       {"encoding", std::string("rgb8")}};
     std::thread camera([&] {
         auto cam = rs::SegmentedSeriesWriter::open(dir.path(), "sensors/cell_cam",
-                                                   "raybotic.camera", "image", {}, {}, cam_attrs);
+                                                   "raybotic.camera", "image", {}, {},
+                                                   cam_attrs);
         EXPECT_EQ(cam.sample_shape("image"), (rs::Shape{6, 8, 3}));
         std::vector<std::uint8_t> rgb(6 * 8 * 3);
         for (int i = 0; i < 12; ++i) {
@@ -178,10 +189,9 @@ TEST(Segmented, RebuildLinksLateSegments) {
     TempDir dir;
     rs::ScanWriter::create(dir.path()).finalize();
     {
-        auto w = rs::SegmentedSeriesWriter::open(dir.path(), "sensors/detector_0",
-                                                 "raybotic.xray_detector", "image",
-                                                 {{"height", H}, {"width", W}}, {},
-                                                 detector_attributes());
+        auto w = rs::SegmentedSeriesWriter::open(
+            dir.path(), "sensors/detector_0", "raybotic.xray_detector", "image",
+            {{"height", H}, {"width", W}}, {}, detector_attributes());
         const auto img = image(0);
         w.append(0, {{"image", rs::view(img.data(), {H, W})}});
     }  // closed by the destructor
@@ -195,19 +205,21 @@ TEST(Segmented, RebuildLinksLateSegments) {
 TEST(Segmented, RefusesMixingRecordingsAndMissingDims) {
     TempDir dir;
     auto scan = rs::ScanWriter::create(dir.path());
-    auto det = scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
+    auto det =
+        scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
     EXPECT_THROW((void)det.segmented_series("image"), rs::Error);  // height/width unknown
-    EXPECT_THROW((void)det.series("image"), rs::Error);            // segmented, not inline
+    EXPECT_THROW((void)det.series("image"), rs::Error);  // segmented, not inline
     {
         auto images = det.segmented_series("image", {{"height", H}, {"width", W}});
         const auto img = image(0);
         images.append(0, {{"image", rs::view(img.data(), {H, W})}});
         images.close();
-        EXPECT_THROW(images.append(1, {{"image", rs::view(img.data(), {H, W})}}), rs::Error);
+        EXPECT_THROW(images.append(1, {{"image", rs::view(img.data(), {H, W})}}),
+                     rs::Error);
     }
     EXPECT_THROW((void)rs::SegmentedSeriesWriter::open(dir.path(), "sensors/detector_0",
-                                                 "raybotic.xray_detector", "image",
-                                                 {{"height", H}, {"width", W}}),
+                                                       "raybotic.xray_detector", "image",
+                                                       {{"height", H}, {"width", W}}),
                  rs::Error);  // segments of another recording exist
 }
 
@@ -215,11 +227,13 @@ TEST(Segmented, FloatProjectionsWhenTheSchemaAllowsThem) {
     TempDir dir;
     {
         auto scan = rs::ScanWriter::create(dir.path());
-        auto det = scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
+        auto det =
+            scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
         rs::SegmentOptions opt;
         opt.dtypes = {{"image", rs::DType::Int32}};
-        EXPECT_THROW((void)det.segmented_series("image", {{"height", H}, {"width", W}}, opt),
-                     rs::Error);  // not allowed for detector images
+        EXPECT_THROW(
+            (void)det.segmented_series("image", {{"height", H}, {"width", W}}, opt),
+            rs::Error);  // not allowed for detector images
         opt.dtypes = {{"image", rs::DType::Float32}};
         auto images = det.segmented_series("image", {{"height", H}, {"width", W}}, opt);
         std::vector<float> img(H * W, 0.25f);
@@ -258,7 +272,8 @@ TEST(Segmented, BitshuffleLz4OddSizesAndAllReadPaths) {
         std::vector<float> img(h * w);
         for (std::uint64_t i = 0; i < n; ++i) {
             for (std::uint64_t k = 0; k < h * w; ++k) img[k] = value(i, k);
-            images.append(static_cast<std::int64_t>(i), {{"image", rs::view(img.data(), {h, w})}});
+            images.append(static_cast<std::int64_t>(i),
+                          {{"image", rs::view(img.data(), {h, w})}});
         }
     }
     const auto check = [&](const rs::SeriesReader& s, const char* how) {
@@ -266,14 +281,16 @@ TEST(Segmented, BitshuffleLz4OddSizesAndAllReadPaths) {
         const auto all = s.read("image").values<float>();
         for (std::uint64_t i = 0; i < n; ++i) {
             for (std::uint64_t k = 0; k < h * w; ++k) {
-                ASSERT_EQ(all[i * h * w + k], value(i, k)) << how << " sample " << i << " " << k;
+                ASSERT_EQ(all[i * h * w + k], value(i, k))
+                    << how << " sample " << i << " " << k;
             }
         }
         const auto one = s.read_sample("image", 4).values<float>();
         ASSERT_EQ(one[h * w - 1], value(4, h * w - 1)) << how;
     };
     // Segment files directly (rbscan's own decoder) ...
-    check(rs::SeriesReader::open_segments(dir.path(), "sensors/detector_0", "image"), "segments");
+    check(rs::SeriesReader::open_segments(dir.path(), "sensors/detector_0", "image"),
+          "segments");
     // ... and the virtual dataset in the master file (HDF5 + registered filter).
     const auto scan = rs::ScanReader::open(dir.path());
     check(scan.node("sensors/detector_0").series("image"), "master");
