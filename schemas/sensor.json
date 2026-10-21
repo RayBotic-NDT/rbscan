@@ -1,0 +1,24 @@
+{
+  "schema": "raybotic.sensor",
+  "version": 1,
+  "abstract": true,
+  "category": "sensors",
+  "description": "Base of every sensor: where it sits (frame_id) and what it is. Concrete sensor schemas extend it.",
+  "attributes": {
+    "frame_id": {
+      "dtype": "string",
+      "required": true,
+      "description": "Frame the sensor data is given in; its pose over time is under frames/<frame_id>."
+    },
+    "simulated": {
+      "dtype": "bool",
+      "required": true,
+      "description": "true when the data comes from a simulation (gVXR, Gazebo, ...)."
+    },
+    "vendor": { "dtype": "string" },
+    "model": { "dtype": "string" },
+    "serial": { "dtype": "string" },
+    "description": { "dtype": "string" }
+  },
+  "series": {}
+}

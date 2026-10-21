@@ -1,0 +1,32 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=3.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "rbscan"
+version = "0.1.0"
+description = "RayBotic scan data format: HDF5 master file + segmented sensor streams"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "h5py>=3.10"]
+
+[tool.scikit-build]
+minimum-version = "0.10"
+cmake.version = ">=3.24"
+cmake.build-type = "Release"
+# Reused between pip builds, so HDF5 (in .deps) and the rest are built once.
+build-dir = "build/py-{wheel_tag}"
+wheel.packages = ["python/rbscan"]
+install.components = ["python"]
+sdist.exclude = [".deps", "build", ".venv"]
+
+[tool.scikit-build.cmake.define]
+RBSCAN_BUILD_PYTHON = "ON"
+RBSCAN_BUILD_TESTS = "OFF"
+RBSCAN_BUILD_EXAMPLES = "OFF"
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]

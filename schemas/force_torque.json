@@ -1,0 +1,19 @@
+{
+  "schema": "raybotic.force_torque",
+  "version": 1,
+  "extends": "raybotic.sensor/1",
+  "description": "6-axis force/torque sensor, values in frame_id (geometry_msgs/Wrench).",
+  "attributes": {
+    "force_range_n": { "dtype": "float64", "units": "N" },
+    "torque_range_nm": { "dtype": "float64", "units": "N m" }
+  },
+  "series": {
+    "wrench": {
+      "storage": "inline",
+      "fields": {
+        "force": { "dtype": "float64", "shape": [3], "units": "N" },
+        "torque": { "dtype": "float64", "shape": [3], "units": "N m" }
+      }
+    }
+  }
+}

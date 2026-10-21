@@ -1,0 +1,54 @@
+{
+  "schema": "raybotic.xray_detector",
+  "version": 1,
+  "extends": "raybotic.sensor/1",
+  "description": "Flat-panel X-ray detector (raybotic_xray_interfaces/DetectorState). frame_id is the centre of the active area: x = image right (columns), y = image up (rows run along -y), z = normal towards the source. Raw images are stored; corrections go to the calibration series.",
+  "attributes": {
+    "sensor_width": { "dtype": "uint32", "required": true, "units": "px", "description": "Sensor without binning." },
+    "sensor_height": { "dtype": "uint32", "required": true, "units": "px", "description": "Sensor without binning." },
+    "pixel_pitch_u_um": { "dtype": "float64", "required": true, "units": "um", "description": "Unbinned pitch along columns (x)." },
+    "pixel_pitch_v_um": { "dtype": "float64", "required": true, "units": "um", "description": "Unbinned pitch along rows (-y)." },
+    "bit_depth": { "dtype": "uint8", "units": "bit" },
+    "scintillator": { "dtype": "string", "description": "e.g. CsI 600um." }
+  },
+  "series": {
+    "image": {
+      "storage": "segmented",
+      "description": "Raw projections. Image size is fixed for one recording (binning applied).",
+      "fields": {
+        "image": {
+          "dtype": "uint16",
+          "shape": ["height", "width"],
+          "units": "counts",
+          "description": "Row-major, row 0 at the top (+y), column 0 at the left (-x)."
+        }
+      }
+    },
+    "state": {
+      "storage": "inline",
+      "description": "Acquisition settings, one sample per change.",
+      "fields": {
+        "binning": { "dtype": "uint8" },
+        "image_width": { "dtype": "uint32", "units": "px" },
+        "image_height": { "dtype": "uint32", "units": "px" },
+        "integration_time_ms": { "dtype": "float64", "units": "ms" },
+        "averages": { "dtype": "uint32" },
+        "gain": { "dtype": "float64" }
+      }
+    },
+    "calibration": {
+      "storage": "inline",
+      "description": "Correction images, each taken at its time stamp with the settings in force then.",
+      "fields": {
+        "dark": { "dtype": "float32", "shape": ["height", "width"], "units": "counts", "optional": true },
+        "flat": { "dtype": "float32", "shape": ["height", "width"], "units": "counts", "optional": true },
+        "bad_pixels": {
+          "dtype": "uint8",
+          "shape": ["height", "width"],
+          "optional": true,
+          "description": "Non-zero = defective pixel."
+        }
+      }
+    }
+  }
+}

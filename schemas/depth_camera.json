@@ -1,0 +1,27 @@
+{
+  "schema": "raybotic.depth_camera",
+  "version": 1,
+  "extends": "raybotic.sensor/1",
+  "description": "Depth camera (structured light, ToF, stereo). frame_id: x right, y down, z forward.",
+  "attributes": {
+    "width": { "dtype": "uint32", "required": true, "units": "px" },
+    "height": { "dtype": "uint32", "required": true, "units": "px" },
+    "camera_matrix": { "dtype": "float64", "array": true, "description": "Intrinsics K, 3x3 row-major." },
+    "min_range_m": { "dtype": "float64", "units": "m" },
+    "max_range_m": { "dtype": "float64", "units": "m" }
+  },
+  "series": {
+    "depth": {
+      "storage": "segmented",
+      "fields": {
+        "depth": {
+          "dtype": "float32",
+          "shape": ["height", "width"],
+          "units": "m",
+          "description": "Distance along z; NaN = no measurement."
+        },
+        "confidence": { "dtype": "uint8", "shape": ["height", "width"], "optional": true }
+      }
+    }
+  }
+}

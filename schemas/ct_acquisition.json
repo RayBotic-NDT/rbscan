@@ -1,0 +1,51 @@
+{
+  "schema": "raybotic.ct_acquisition",
+  "version": 1,
+  "category": "acquisitions",
+  "description": "One CT scan: links source and detector and holds the resolved geometry per projection, so reconstruction needs no TF lookup. Geometry is in the world frame, lengths in m.",
+  "attributes": {
+    "type": { "dtype": "string", "required": true, "description": "ct_scan, laminography, radiography, ..." },
+    "source": { "dtype": "string", "required": true, "description": "Node path of the source, e.g. sensors/source_0." },
+    "detector": { "dtype": "string", "required": true, "description": "Node path of the detector, e.g. sensors/detector_0." },
+    "world_frame": { "dtype": "string", "required": true },
+    "trajectory": { "dtype": "string", "description": "Name or parameters of the planned trajectory." },
+    "description": { "dtype": "string" }
+  },
+  "series": {
+    "scan_poses": {
+      "storage": "inline",
+      "description": "raybotic_scan_pose_interfaces/ScanPose: roi in the world, source and detector in the roi frame. Poses as px, py, pz, qx, qy, qz, qw.",
+      "fields": {
+        "roi": { "dtype": "float64", "shape": [7] },
+        "source": { "dtype": "float64", "shape": [7] },
+        "detector": { "dtype": "float64", "shape": [7] }
+      }
+    },
+    "projections": {
+      "storage": "inline",
+      "description": "One row per projection; time = exposure time.",
+      "fields": {
+        "image_index": { "dtype": "uint64", "description": "Sample index in the detector's image series." },
+        "scan_pose_index": { "dtype": "uint64", "optional": true, "description": "Row in scan_poses." },
+        "source_position": { "dtype": "float64", "shape": [3], "units": "m", "description": "Focal spot." },
+        "detector_position": {
+          "dtype": "float64",
+          "shape": [3],
+          "units": "m",
+          "description": "Centre of the image (between pixels width/2-0.5 and height/2-0.5)."
+        },
+        "detector_u": { "dtype": "float64", "shape": [3], "description": "Unit vector along increasing column index." },
+        "detector_v": { "dtype": "float64", "shape": [3], "description": "Unit vector along increasing row index." },
+        "pixel_size": { "dtype": "float64", "shape": [2], "units": "m", "description": "Binned pixel size u, v." },
+        "projection_matrix": { "dtype": "float64", "shape": [3, 4], "optional": true, "description": "World point (m) to pixel (column, row)." },
+        "voltage_kv": { "dtype": "float64", "units": "kV" },
+        "current_ua": { "dtype": "float64", "units": "uA" },
+        "integration_time_ms": { "dtype": "float64", "units": "ms" },
+        "flags": {
+          "dtype": "uint32",
+          "description": "Bit 0 invalid, bit 1 geometry interpolated, bit 2 robot unreachable, bit 3 emission unstable."
+        }
+      }
+    }
+  }
+}

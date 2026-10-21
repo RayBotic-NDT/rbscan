@@ -1,0 +1,43 @@
+{
+  "schema": "raybotic.xray_source",
+  "version": 1,
+  "extends": "raybotic.sensor/1",
+  "description": "X-ray tube and generator (raybotic_xray_interfaces/SourceState). frame_id is the focal spot frame, z = central beam towards the detector.",
+  "attributes": {
+    "voltage_min_kv": { "dtype": "float64", "required": true, "units": "kV" },
+    "voltage_max_kv": { "dtype": "float64", "required": true, "units": "kV" },
+    "current_max_ua": { "dtype": "float64", "required": true, "units": "uA" },
+    "power_max_w": { "dtype": "float64", "required": true, "units": "W" },
+    "focal_spots_um": {
+      "dtype": "float64",
+      "array": true,
+      "units": "um",
+      "description": "Selectable focal spot sizes."
+    },
+    "target_material": { "dtype": "string", "description": "Anode material, e.g. W." },
+    "filter_material": {
+      "dtype": "string",
+      "description": "Pre-filter in the beam; empty or missing = no filter. Its thickness is in the state series."
+    }
+  },
+  "series": {
+    "state": {
+      "storage": "inline",
+      "description": "Generator state, one sample per change or at a fixed rate.",
+      "fields": {
+        "emission_state": {
+          "dtype": "uint8",
+          "description": "0 off, 1 starting, 2 on, 3 stopping, 4 fault (SourceState.EMISSION_*)."
+        },
+        "emission_permitted": { "dtype": "bool", "description": "Interlock closed, door shut, key switch on." },
+        "voltage_setpoint_kv": { "dtype": "float64", "units": "kV" },
+        "current_setpoint_ua": { "dtype": "float64", "units": "uA" },
+        "focal_spot_um": { "dtype": "float64", "units": "um" },
+        "voltage_kv": { "dtype": "float64", "units": "kV", "description": "Actual value; 0 while emission is off." },
+        "current_ua": { "dtype": "float64", "units": "uA", "description": "Actual value; 0 while emission is off." },
+        "power_w": { "dtype": "float64", "units": "W", "description": "Actual value; 0 while emission is off." },
+        "filter_thickness_mm": { "dtype": "float64", "units": "mm", "optional": true }
+      }
+    }
+  }
+}

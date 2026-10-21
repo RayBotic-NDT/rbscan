@@ -1,0 +1,23 @@
+# Build trees and outputs
+build/
+build-*/
+build_*/
+dist/
+out/
+
+# HDF5 / zlib superbuild (sources, build trees, install)
+.deps/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# IDEs and local agent directories
+.vs/
+.vscode/
+.idea/
+.claude/
+CMakeUserPresets.json

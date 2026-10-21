@@ -1,0 +1,54 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Visual Studio 2022 (x64)",
+      "description": "Works with a plain Visual Studio install. Python from .venv when present.",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "RBSCAN_BUILD_TESTS": "ON",
+        "RBSCAN_BUILD_PYTHON": "ON",
+        "RBSCAN_BUILD_EXAMPLES": "ON",
+        "Python_EXECUTABLE": "${sourceDir}/.venv/Scripts/python.exe"
+      }
+    },
+    {
+      "name": "linux",
+      "displayName": "Ninja (Linux)",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build-linux",
+      "cacheVariables": {
+        "RBSCAN_BUILD_TESTS": "ON",
+        "RBSCAN_BUILD_PYTHON": "ON",
+        "RBSCAN_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "ci",
+      "inherits": "default",
+      "cacheVariables": { "RBSCAN_WARNINGS_AS_ERRORS": "ON" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "default", "configuration": "Debug" },
+    { "name": "release", "configurePreset": "default", "configuration": "Release" }
+  ],
+  "testPresets": [
+    {
+      "name": "release",
+      "configurePreset": "default",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "debug",
+      "configurePreset": "default",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

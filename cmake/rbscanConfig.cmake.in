@@ -1,0 +1,6 @@
+@PACKAGE_INIT@
+
+# rbscan links HDF5, libdeflate and nlohmann_json privately; consumers only
+# need the headers and the DLLs.
+include("${CMAKE_CURRENT_LIST_DIR}/rbscanTargets.cmake")
+check_required_components(rbscan)

@@ -1,0 +1,20 @@
+{
+  "schema": "raybotic.transform",
+  "version": 1,
+  "category": "frames",
+  "description": "One edge of the TF tree: pose of child in parent over time. The node is named after the child frame. A static transform has a single sample.",
+  "attributes": {
+    "parent": { "dtype": "string", "required": true },
+    "child": { "dtype": "string", "required": true },
+    "static": { "dtype": "bool", "required": true }
+  },
+  "series": {
+    "pose": {
+      "storage": "inline",
+      "fields": {
+        "translation": { "dtype": "float64", "shape": [3], "units": "m" },
+        "rotation": { "dtype": "float64", "shape": [4], "description": "Unit quaternion x, y, z, w." }
+      }
+    }
+  }
+}

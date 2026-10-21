@@ -1,0 +1,39 @@
+{
+  "schema": "raybotic.robot_arm",
+  "version": 1,
+  "category": "robots",
+  "description": "Serial robot arm (robot_cell): joint states as commanded/measured and how it followed its target frame (raybotic_robot_cell_interfaces/TrackingState).",
+  "attributes": {
+    "joint_names": { "dtype": "string", "array": true, "required": true },
+    "base_frame": { "dtype": "string", "required": true },
+    "tcp_frame": { "dtype": "string", "required": true },
+    "target_frame": { "dtype": "string", "description": "Frame the TCP tracks, e.g. scan_source." },
+    "simulated": { "dtype": "bool", "required": true },
+    "vendor": { "dtype": "string" },
+    "model": { "dtype": "string", "description": "e.g. FANUC CRX-30iA." },
+    "serial": { "dtype": "string" },
+    "urdf": { "dtype": "string", "description": "Robot description as used at runtime." }
+  },
+  "series": {
+    "joint_states": {
+      "storage": "inline",
+      "description": "sensor_msgs/JointState, joint order = joint_names.",
+      "fields": {
+        "position": { "dtype": "float64", "shape": ["joint_names"], "units": "rad" },
+        "velocity": { "dtype": "float64", "shape": ["joint_names"], "units": "rad/s", "optional": true },
+        "effort": { "dtype": "float64", "shape": ["joint_names"], "units": "N m", "optional": true }
+      }
+    },
+    "tracking": {
+      "storage": "inline",
+      "fields": {
+        "status": {
+          "dtype": "uint8",
+          "description": "0 no target, 1 tracking, 2 moving, 3 unreachable (TrackingState.STATUS_*)."
+        },
+        "position_error": { "dtype": "float64", "units": "m" },
+        "orientation_error": { "dtype": "float64", "units": "rad" }
+      }
+    }
+  }
+}

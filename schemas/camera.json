@@ -1,0 +1,27 @@
+{
+  "schema": "raybotic.camera",
+  "version": 1,
+  "extends": "raybotic.sensor/1",
+  "description": "Optical camera (mono or colour). frame_id follows the ROS optical convention: x right, y down, z forward.",
+  "attributes": {
+    "width": { "dtype": "uint32", "required": true, "units": "px" },
+    "height": { "dtype": "uint32", "required": true, "units": "px" },
+    "channels": { "dtype": "uint32", "required": true, "description": "1 = mono, 3 = colour." },
+    "encoding": { "dtype": "string", "required": true, "description": "mono8, rgb8 or bgr8 (sensor_msgs/image_encodings)." },
+    "camera_matrix": {
+      "dtype": "float64",
+      "array": true,
+      "description": "Intrinsics K, 3x3 row-major (fx 0 cx; 0 fy cy; 0 0 1)."
+    },
+    "distortion_model": { "dtype": "string", "description": "plumb_bob, rational_polynomial, equidistant." },
+    "distortion": { "dtype": "float64", "array": true }
+  },
+  "series": {
+    "image": {
+      "storage": "segmented",
+      "fields": {
+        "image": { "dtype": "uint8", "shape": ["height", "width", "channels"] }
+      }
+    }
+  }
+}

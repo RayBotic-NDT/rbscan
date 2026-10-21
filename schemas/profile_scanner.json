@@ -1,0 +1,24 @@
+{
+  "schema": "raybotic.profile_scanner",
+  "version": 1,
+  "extends": "raybotic.sensor/1",
+  "description": "Laser line / profile scanner: one profile of points per sample, in frame_id.",
+  "attributes": {
+    "points_per_profile": { "dtype": "uint32", "required": true },
+    "wavelength_nm": { "dtype": "float64", "units": "nm" }
+  },
+  "series": {
+    "profile": {
+      "storage": "segmented",
+      "fields": {
+        "points": {
+          "dtype": "float32",
+          "shape": ["points_per_profile", 3],
+          "units": "m",
+          "description": "x, y, z per point; NaN = no measurement."
+        },
+        "intensity": { "dtype": "uint16", "shape": ["points_per_profile"], "optional": true }
+      }
+    }
+  }
+}
