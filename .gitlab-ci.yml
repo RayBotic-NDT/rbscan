@@ -29,20 +29,54 @@ default:
     - raybot1
 
 variables:
-  # Keep .deps/ (prebuilt HDF5 + zlib) and build trees across jobs on the runner
+  # Keep .deps/ (prebuilt HDF5 + zlib, uv Python toolchain) and build trees across jobs
   GIT_CLEAN_FLAGS: "none"
   GIT_CONFIG_COUNT: "1"
   GIT_CONFIG_KEY_0: "safe.directory"
   GIT_CONFIG_VALUE_0: "*"
   # Python versions for which wheels are built in the package stage ( via uv )
   RBSCAN_WHEEL_PYTHONS: "3.11 3.12 3.13 3.14"
-  CMAKE_CONFIGURE_ARGS: >-
-    -G "Visual Studio 17 2022" -A x64
-    -DRBSCAN_BUILD_TESTS=ON
-    -DRBSCAN_BUILD_PYTHON=ON
-    -DRBSCAN_BUILD_EXAMPLES=ON
-    -DRBSCAN_BUILD_TOOLS=ON
-    -DRBSCAN_WARNINGS_AS_ERRORS=ON
+
+# ------------------------------------------------------------------
+# Shared: Ensure uv + .venv (with Python headers, numpy, pybind11, pytest, h5py)
+# ------------------------------------------------------------------
+# The GitLab Runner service runs as LocalSystem, where user-installed uv/Python
+# are not in the system PATH. Locate uv (or install into .deps/uv) and provision
+# a project-local .venv inside the workspace.
+.setup_python: &setup_python |
+  $ErrorActionPreference = "Stop"
+  $uvSearchDirs = @(
+    "$PWD/.deps/uv",
+    "$env:USERPROFILE\.local\bin",
+    "$env:USERPROFILE\.cargo\bin",
+    "C:\Users\roboknecht\.local\bin",
+    "C:\ProgramData\uv"
+  )
+  foreach ($d in $uvSearchDirs) {
+    if (Test-Path (Join-Path $d "uv.exe")) {
+      $env:PATH = "$d;$env:PATH"
+      break
+    }
+  }
+  if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing uv into $PWD/.deps/uv..."
+    $env:UV_INSTALL_DIR = "$PWD/.deps/uv"
+    irm https://astral.sh/uv/install.ps1 | iex
+    $env:PATH = "$PWD/.deps/uv;$env:PATH"
+  }
+  $env:UV_PYTHON_INSTALL_DIR = "$PWD/.deps/uv-python"
+  $env:UV_CACHE_DIR = "$PWD/.deps/uv-cache"
+
+  $venvPython = "$PWD/.venv/Scripts/python.exe"
+  if (-not (Test-Path $venvPython)) {
+    Write-Host "Creating .venv with Python 3.12 via uv..."
+    uv venv --python 3.12 .venv
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  }
+  uv pip install --python $venvPython "pybind11>=3.0" "numpy>=1.24" "pytest>=8" "h5py>=3.10"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  $cmakePython = ($venvPython -replace '\\', '/')
+  Write-Host "Using Python for CMake: $cmakePython"
 
 # ------------------------------------------------------------------
 # Stage: Lint & Code Formatting Check
@@ -93,20 +127,18 @@ lint:clang-format:
 build:windows:
   stage: build
   script:
+    - *setup_python
     - |
       $ErrorActionPreference = "Stop"
       Stop-Process -Name "rbscan", "rbscan_tests", "rbscan_record_ct_scan", "rbscan_read_benchmark" -Force -ErrorAction SilentlyContinue
-      $pyArg = @()
-      if (Test-Path ".venv/Scripts/python.exe") {
-        $pyArg = @("-DPython_EXECUTABLE=$PWD/.venv/Scripts/python.exe")
-      }
       cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+        -UPython* `
+        "-DPython_EXECUTABLE=$cmakePython" `
         -DRBSCAN_BUILD_TESTS=ON `
         -DRBSCAN_BUILD_PYTHON=ON `
         -DRBSCAN_BUILD_EXAMPLES=ON `
         -DRBSCAN_BUILD_TOOLS=ON `
-        -DRBSCAN_WARNINGS_AS_ERRORS=ON `
-        @pyArg
+        -DRBSCAN_WARNINGS_AS_ERRORS=ON
       if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       cmake --build build --config Release --parallel
       if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -119,10 +151,13 @@ test:windows:
   needs:
     - build:windows
   script:
+    - *setup_python
     - |
       $ErrorActionPreference = "Stop"
       if (-not (Test-Path "build/bin/Release/rbscan.dll")) {
         cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+          -UPython* `
+          "-DPython_EXECUTABLE=$cmakePython" `
           -DRBSCAN_BUILD_TESTS=ON `
           -DRBSCAN_BUILD_PYTHON=ON `
           -DRBSCAN_BUILD_EXAMPLES=ON `
@@ -149,10 +184,13 @@ package:artifacts:
     - build:windows
     - test:windows
   script:
+    - *setup_python
     - |
       $ErrorActionPreference = "Stop"
       if (-not (Test-Path "build/bin/Release/rbscan.dll")) {
         cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+          -UPython* `
+          "-DPython_EXECUTABLE=$cmakePython" `
           -DRBSCAN_BUILD_TESTS=OFF `
           -DRBSCAN_BUILD_PYTHON=OFF `
           -DRBSCAN_BUILD_EXAMPLES=OFF `
@@ -182,21 +220,14 @@ package:artifacts:
       Remove-Item -Path "dist/sdk" -Recurse -Force
 
       # 2. Build Python wheels (reuses prebuilt HDF5 in .deps/)
-      $uv = Get-Command uv -ErrorAction SilentlyContinue
-      if ($uv) {
-        $versions = ($env:RBSCAN_WHEEL_PYTHONS -split '\s+') | Where-Object { $_ }
-        foreach ($py in $versions) {
-          Write-Host "Building Python wheel for Python $py..."
-          uv build --wheel --python $py -o dist/wheels
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to build wheel for Python $py"
-            exit $LASTEXITCODE
-          }
+      $versions = ($env:RBSCAN_WHEEL_PYTHONS -split '\s+') | Where-Object { $_ }
+      foreach ($py in $versions) {
+        Write-Host "Building Python wheel for Python $py..."
+        uv build --wheel --python $py -o dist/wheels
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to build wheel for Python $py"
+          exit $LASTEXITCODE
         }
-      } else {
-        Write-Host "uv not found; building wheel with default Python..."
-        python -m pip wheel . --no-deps -w dist/wheels
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       }
       Remove-Item -Path "dist/wheels/.gitignore" -Force -ErrorAction SilentlyContinue
 
@@ -207,12 +238,10 @@ package:artifacts:
       }
 
       # Smoke-test the latest built wheel in an isolated environment
-      if ($uv) {
-        $latestWheel = $wheels | Sort-Object Name -Descending | Select-Object -First 1
-        Write-Host "Smoke-testing wheel $($latestWheel.Name)..."
-        uv run --isolated --no-project --with $latestWheel.FullName --with pytest --with h5py pytest python/tests
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      }
+      $latestWheel = $wheels | Sort-Object Name -Descending | Select-Object -First 1
+      Write-Host "Smoke-testing wheel $($latestWheel.Name)..."
+      uv run --isolated --no-project --with $latestWheel.FullName --with pytest --with h5py pytest python/tests
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       Write-Host "=== Packaged Artifacts ==="
       Get-ChildItem -Path "dist" -Recurse -File | ForEach-Object {
