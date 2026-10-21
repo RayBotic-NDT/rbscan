@@ -237,11 +237,13 @@ package:artifacts:
         exit 1
       }
 
-      # Smoke-test the latest built wheel in an isolated environment
-      $latestWheel = $wheels | Sort-Object Name -Descending | Select-Object -First 1
-      Write-Host "Smoke-testing wheel $($latestWheel.Name)..."
-      uv run --isolated --no-project --with $latestWheel.FullName --with pytest --with h5py pytest python/tests
-      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # Smoke-test the Python 3.12 wheel in an isolated environment
+      $testWheel = $wheels | Where-Object { $_.Name -match '-cp312-' } | Select-Object -First 1
+      if ($testWheel) {
+        Write-Host "Smoke-testing wheel $($testWheel.Name)..."
+        uv run --isolated --no-project --python 3.12 --with $testWheel.FullName --with pytest --with h5py pytest python/tests
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      }
 
       Write-Host "=== Packaged Artifacts ==="
       Get-ChildItem -Path "dist" -Recurse -File | ForEach-Object {
