@@ -47,7 +47,7 @@ The full description is in [docs/format.md](docs/format.md).
 |---|---|---|
 | `raybotic.sensor` (abstract) | sensors | – (frame_id, simulated, vendor, …) |
 | `raybotic.xray_source` | sensors | `state` (kV, µA, W, focal spot, emission) |
-| `raybotic.xray_detector` | sensors | `image` (segmented), `state`, `calibration` (dark/flat/bad pixels) |
+| `raybotic.xray_detector` | sensors | `image` (segmented; uint16, float32 or uint8), `state`, `calibration` (dark/flat/bad pixels) |
 | `raybotic.camera` | sensors | `image` (segmented) |
 | `raybotic.depth_camera` | sensors | `depth` (segmented) |
 | `raybotic.profile_scanner` | sensors | `profile` (segmented) |
@@ -57,6 +57,13 @@ The full description is in [docs/format.md](docs/format.md).
 | `raybotic.ct_acquisition` | acquisitions | `scan_poses`, `projections` (resolved geometry per projection) |
 | `raybotic.annotations` | annotations | `markers`, `observations` (+ the viewer's full document) |
 | `raybotic.ezrt_import` | imports | `headers` (original EZRT headers, for a lossless way back) |
+| `raybotic.volume` | volumes | `slices` (segmented; float32, uint16 or uint8) + `voxel_to_world` |
+
+A field may allow several data types (`"dtype": ["uint16", "float32"]`, the
+first is the default); the writer picks one per series with
+`SegmentOptions::dtypes` / `dtypes={"image": "float32"}` in Python, e.g. for
+corrected or simulated projections. Volumes: `rbscan.write_volume(scan, name,
+array, voxel_to_world)` and `rbscan.read_volume(scan, "volumes/<name>")`.
 
 A new sensor is a new JSON file. It extends `raybotic.sensor/1` and declares
 its attributes and series. Register it at runtime (`register_schema`), or put it

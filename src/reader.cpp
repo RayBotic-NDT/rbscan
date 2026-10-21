@@ -1,9 +1,14 @@
 #include "raybotic/scan/reader.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
+#include <future>
+#include <thread>
 
+#include "compression.hpp"
 #include "internal.hpp"
+#include "thread_pool.hpp"
 #include "raybotic/scan/writer.hpp"
 #include "series_layout.hpp"
 
@@ -46,6 +51,108 @@ void read_rows(hid_t dataset, const FieldInfo& field, std::uint64_t start, std::
               "reading " + field.name);
 }
 
+// --- Reading chunks past HDF5's filter pipeline --------------------------------
+//
+// HDF5 decompresses inside H5Dread, i.e. under the library-wide lock, so
+// threads reading images queue up behind each other. For datasets with one
+// sample per chunk and filters rbscan understands (shuffle, deflate) the
+// reader instead fetches the stored chunk under the lock (H5Dread_chunk, a
+// plain file read) and decodes it outside: in the calling thread for single
+// samples, in a thread pool for ranges.
+
+/// Whether and how a dataset's chunks can be decoded by rbscan itself.
+struct DirectChunks {
+    bool usable{false};
+    /// Pipeline positions of the filters (bit i of the chunk's filter mask
+    /// says filter i was skipped); -1 when absent.
+    int shuffle{-1};
+    int deflate{-1};
+};
+
+DirectChunks inspect_chunks(hid_t dataset, const FieldInfo& field) {
+    DirectChunks dc;
+    if constexpr (std::endian::native != std::endian::little) return dc;
+    h5::Lock lock(h5::mutex());
+    h5::Id dcpl(H5Dget_create_plist(dataset));
+    if (!dcpl || H5Pget_layout(dcpl.get()) != H5D_CHUNKED) {
+        H5Eclear2(H5E_DEFAULT);
+        return dc;
+    }
+    // One whole sample per chunk.
+    const int rank = static_cast<int>(field.sample_shape.size()) + 1;
+    std::vector<hsize_t> chunk(static_cast<std::size_t>(rank));
+    if (H5Pget_chunk(dcpl.get(), rank, chunk.data()) != rank || chunk[0] != 1) return dc;
+    for (std::size_t i = 0; i < field.sample_shape.size(); ++i) {
+        if (chunk[i + 1] != field.sample_shape[i]) return dc;
+    }
+    // Stored exactly as the memory type: little-endian, same width.
+    h5::Id type(H5Dget_type(dataset));
+    const std::size_t size = H5Tget_size(type.get());
+    if (size != dtype_size(field.dtype)) return dc;
+    if (size > 1 && H5Tget_order(type.get()) != H5T_ORDER_LE) return dc;
+
+    const int filters = H5Pget_nfilters(dcpl.get());
+    for (int i = 0; i < filters; ++i) {
+        unsigned flags = 0;
+        std::size_t n_values = 0;
+        unsigned config = 0;
+        const H5Z_filter_t id = H5Pget_filter2(dcpl.get(), static_cast<unsigned>(i), &flags,
+                                               &n_values, nullptr, 0, nullptr, &config);
+        if (id == H5Z_FILTER_SHUFFLE) {
+            dc.shuffle = i;
+        } else if (id == H5Z_FILTER_DEFLATE) {
+            dc.deflate = i;
+        } else {
+            H5Eclear2(H5E_DEFAULT);
+            return dc;  // fletcher32, szip, plugins: leave them to HDF5
+        }
+    }
+    // Written shuffle first, then deflate; undone in reverse.
+    if (dc.shuffle >= 0 && dc.deflate >= 0 && dc.shuffle > dc.deflate) return dc;
+    dc.usable = true;
+    return dc;
+}
+
+struct RawChunk {
+    std::vector<std::byte> data;
+    std::uint32_t mask{0};
+};
+
+/// The stored bytes of sample `index`'s chunk. False when the chunk is not
+/// allocated (then HDF5 has to supply the fill value).
+bool fetch_chunk(hid_t dataset, const FieldInfo& field, std::uint64_t index, RawChunk& raw) {
+    h5::Lock lock(h5::mutex());
+    std::vector<hsize_t> offset(field.sample_shape.size() + 1, 0);
+    offset[0] = index;
+    hsize_t size = 0;
+    if (H5Dget_chunk_storage_size(dataset, offset.data(), &size) < 0 || size == 0) {
+        H5Eclear2(H5E_DEFAULT);
+        return false;
+    }
+    raw.data.resize(static_cast<std::size_t>(size));
+    h5::check(H5Dread_chunk(dataset, H5P_DEFAULT, offset.data(), &raw.mask, raw.data.data()),
+              "H5Dread_chunk " + field.name);
+    return true;
+}
+
+void decode(const DirectChunks& dc, const FieldInfo& field, const RawChunk& raw,
+            std::byte* out) {
+    const auto applied = [&](int position) {
+        return position >= 0 && (raw.mask & (1u << static_cast<unsigned>(position))) == 0;
+    };
+    detail::decode_chunk(raw.data.data(), raw.data.size(), out, field.sample_bytes(),
+                         dtype_size(field.dtype), applied(dc.deflate), applied(dc.shuffle));
+}
+
+detail::ThreadPool& decode_pool() {
+    static detail::ThreadPool pool(std::max(1u, std::thread::hardware_concurrency() / 2));
+    return pool;
+}
+
+/// Rows [start, start + count) of one dataset, decoded by rbscan where it can.
+void read_samples(hid_t dataset, const DirectChunks& dc, const FieldInfo& field,
+                  std::uint64_t start, std::uint64_t count, std::byte* out);
+
 FieldInfo describe(hid_t dataset, const std::string& name, const FieldSpec* spec) {
     h5::Lock lock(h5::mutex());
     h5::Id type(h5::check_id(H5Dget_type(dataset), "H5Dget_type"));
@@ -60,6 +167,51 @@ FieldInfo describe(hid_t dataset, const std::string& name, const FieldSpec* spec
         info.units = *u;
     }
     return info;
+}
+
+void read_samples(hid_t dataset, const DirectChunks& dc, const FieldInfo& field,
+                  std::uint64_t start, std::uint64_t count, std::byte* out) {
+    if (!dc.usable) {
+        read_rows(dataset, field, start, count, out);
+        return;
+    }
+    const std::size_t bytes = field.sample_bytes();
+    if (count == 1) {
+        RawChunk raw;
+        if (fetch_chunk(dataset, field, start, raw)) {
+            decode(dc, field, raw, out);
+        } else {
+            read_rows(dataset, field, start, 1, out);
+        }
+        return;
+    }
+    // Fetch one chunk after the other (file reads under the lock), decode them
+    // in parallel as they arrive.
+    std::vector<std::future<void>> jobs;
+    std::exception_ptr failed;
+    for (std::uint64_t i = 0; i < count; ++i) {
+        std::byte* target = out + i * bytes;
+        auto raw = std::make_shared<RawChunk>();
+        try {
+            if (!fetch_chunk(dataset, field, start + i, *raw)) {
+                read_rows(dataset, field, start + i, 1, target);
+                continue;
+            }
+        } catch (...) {
+            failed = std::current_exception();
+            break;
+        }
+        jobs.push_back(decode_pool().submit(
+            [&dc, &field, raw, target] { decode(dc, field, *raw, target); }));
+    }
+    for (auto& j : jobs) {
+        try {
+            j.get();
+        } catch (...) {
+            if (!failed) failed = std::current_exception();
+        }
+    }
+    if (failed) std::rethrow_exception(failed);
 }
 
 }  // namespace
@@ -101,6 +253,7 @@ namespace {
 /// A series in the master file (inline, or virtual datasets).
 struct MasterSeries final : SeriesReader::Impl {
     std::vector<h5::Id> datasets;
+    std::vector<DirectChunks> direct;
 
     std::uint64_t size() const override {
         h5::Lock lock(h5::mutex());
@@ -111,7 +264,7 @@ struct MasterSeries final : SeriesReader::Impl {
 
     void read(std::size_t field, std::uint64_t start, std::uint64_t count,
               std::byte* out) const override {
-        read_rows(datasets[field].get(), fields[field], start, count, out);
+        read_samples(datasets[field].get(), direct[field], fields[field], start, count, out);
     }
 };
 
@@ -122,6 +275,7 @@ struct SegmentSeries final : SeriesReader::Impl {
         fs::path path;
         h5::Id file;
         std::vector<h5::Id> datasets;
+        std::vector<DirectChunks> direct;
         std::uint64_t first{0};
         std::uint64_t samples{0};
     };
@@ -169,6 +323,7 @@ struct SegmentSeries final : SeriesReader::Impl {
                 }
                 for (const auto& f : fields) {
                     s.datasets.push_back(h5::open_dataset(s.file.get(), f.name));
+                    s.direct.push_back(inspect_chunks(s.datasets.back().get(), f));
                 }
             } catch (const Error&) {
                 break;  // being created right now; picked up by the next refresh
@@ -189,7 +344,7 @@ struct SegmentSeries final : SeriesReader::Impl {
             if (start >= end) continue;
             const auto local = start - s.first;
             const auto n = std::min(count, end - start);
-            read_rows(s.datasets[field].get(), fields[field], local, n, out);
+            read_samples(s.datasets[field].get(), s.direct[field], fields[field], local, n, out);
             out += n * bytes;
             start += n;
             count -= n;
@@ -368,6 +523,7 @@ SeriesReader NodeReader::series(std::string_view name) const {
         s->datasets.push_back(h5::open_dataset(group.get(), field));
         s->fields.push_back(describe(s->datasets.back().get(), field, spec.field(field)));
         if (field == detail::time_field) s->fields.back().units = "ns";
+        s->direct.push_back(inspect_chunks(s->datasets.back().get(), s->fields.back()));
     }
     return SeriesReader(s);
 }

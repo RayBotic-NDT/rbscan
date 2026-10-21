@@ -39,7 +39,61 @@ void shuffle(const std::byte* in, std::byte* out, std::size_t size, std::size_t 
     if (rest > 0) std::memcpy(out + n * element_size, in + n * element_size, rest);
 }
 
+struct DecompressorDeleter {
+    void operator()(libdeflate_decompressor* d) const { libdeflate_free_decompressor(d); }
+};
+
+libdeflate_decompressor* decompressor() {
+    thread_local std::unique_ptr<libdeflate_decompressor, DecompressorDeleter> d(
+        libdeflate_alloc_decompressor());
+    if (!d) throw Error("libdeflate_alloc_decompressor failed");
+    return d.get();
+}
+
+/// Inverse of shuffle().
+void unshuffle(const std::byte* in, std::byte* out, std::size_t size, std::size_t element_size) {
+    const std::size_t n = size / element_size;
+    for (std::size_t k = 0; k < element_size; ++k) {
+        const std::byte* plane = in + k * n;
+        std::byte* dst = out + k;
+        for (std::size_t i = 0; i < n; ++i) dst[i * element_size] = plane[i];
+    }
+    const std::size_t rest = size - n * element_size;
+    if (rest > 0) std::memcpy(out + n * element_size, in + n * element_size, rest);
+}
+
 }  // namespace
+
+void decode_chunk(const std::byte* data, std::size_t size, std::byte* out, std::size_t out_size,
+                  std::size_t element_size, bool deflated, bool shuffled) {
+    shuffled = shuffled && element_size > 1;
+    std::vector<std::byte> inflated;
+    const std::byte* plain = data;
+    std::size_t plain_size = size;
+    if (deflated) {
+        // Straight into `out` unless a shuffle still has to follow.
+        std::byte* target = out;
+        if (shuffled) {
+            inflated.resize(out_size);
+            target = inflated.data();
+        }
+        std::size_t written = 0;
+        const auto result = libdeflate_zlib_decompress(decompressor(), data, size, target,
+                                                       out_size, &written);
+        if (result != LIBDEFLATE_SUCCESS || written != out_size) {
+            throw Error("corrupt or truncated deflate chunk");
+        }
+        if (!shuffled) return;
+        plain = inflated.data();
+        plain_size = written;
+    }
+    if (plain_size != out_size) throw Error("chunk has an unexpected size");
+    if (shuffled) {
+        unshuffle(plain, out, out_size, element_size);
+    } else {
+        std::memcpy(out, plain, out_size);
+    }
+}
 
 std::vector<std::byte> encode_chunk(const std::byte* data, std::size_t size,
                                     std::size_t element_size,

@@ -143,6 +143,15 @@ frames. The conventions match `raybotic_scan_pose_interfaces/ScanPose`:
   | 2 | a robot tracking the source or detector frame was unreachable |
   | 3 | emission was not on |
 
+## Volumes
+
+`volumes/<name>` (`raybotic.volume/1`) is a stack of slices: sample k of the
+segmented series `slices` is slice k, `[height, width]` in float32, uint16 or
+uint8. Attribute `voxel_to_world` (4x4, row-major, m) maps voxel index
+(i, j, k, 1) = (column, row, slice, 1) to the world, with indices at voxel
+centres; `voxel_size` repeats its column norms. `acquisition` and `parameters`
+say what it was made from and how.
+
 ## Schemas
 
 A schema is a JSON object:
@@ -173,7 +182,9 @@ A schema is a JSON object:
 ```
 
 - `dtype`: `bool`, `int8` … `uint64`, `float32`, `float64`; `string` is allowed
-  for attributes only.
+  for attributes only. A field may list several (`["uint16", "float32"]`); the
+  first is the default and the writer picks one per series. Readers take the
+  type from the data.
 - `shape`: a list of fixed sizes and/or names. A name is resolved when the
   series is created: first from the explicit `dims`, then from an integer node
   attribute of that name, then from the length of an array attribute of that
