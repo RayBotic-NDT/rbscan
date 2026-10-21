@@ -4,6 +4,7 @@ build-*/
 build_*/
 dist/
 out/
+tmp/
 
 # HDF5 / zlib superbuild (sources, build trees, install)
 .deps/
