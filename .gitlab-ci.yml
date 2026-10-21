@@ -1,0 +1,184 @@
+# ==============================================================================
+# GitLab CI/CD Pipeline for rbscan (RayBotic Scan Data Format)
+# ==============================================================================
+# Stages:
+#   1. build    - CMake Release build (C++ shared library, CLI tool, tests)
+#   2. test     - C++ GoogleTest + Python pytest suite via CTest (JUnit report)
+#   3. package  - C++ DLLs / SDK (rbscan.dll, rbscan_hdf5.dll, rbscan.lib,
+#                 headers, CMake config) and Python wheels (*.whl) exposed
+#                 directly as GitLab CI Job Artifacts.
+# ==============================================================================
+
+stages:
+  - build
+  - test
+  - package
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+default:
+  tags:
+    - raybot1
+
+variables:
+  # Keep .deps/ (prebuilt HDF5 + zlib) and build trees across jobs on the runner
+  GIT_CLEAN_FLAGS: "none"
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: "safe.directory"
+  GIT_CONFIG_VALUE_0: "*"
+  # Python versions for which wheels are built in the package stage ( via uv )
+  RBSCAN_WHEEL_PYTHONS: "3.11 3.12 3.13 3.14"
+  CMAKE_CONFIGURE_ARGS: >-
+    -G "Visual Studio 17 2022" -A x64
+    -DRBSCAN_BUILD_TESTS=ON
+    -DRBSCAN_BUILD_PYTHON=ON
+    -DRBSCAN_BUILD_EXAMPLES=ON
+    -DRBSCAN_BUILD_TOOLS=ON
+    -DRBSCAN_WARNINGS_AS_ERRORS=ON
+
+# ------------------------------------------------------------------
+# Stage: Build Release Binaries
+# ------------------------------------------------------------------
+build:windows:
+  stage: build
+  script:
+    - |
+      $ErrorActionPreference = "Stop"
+      Stop-Process -Name "rbscan", "rbscan_tests", "rbscan_record_ct_scan", "rbscan_read_benchmark" -Force -ErrorAction SilentlyContinue
+      $pyArg = @()
+      if (Test-Path ".venv/Scripts/python.exe") {
+        $pyArg = @("-DPython_EXECUTABLE=$PWD/.venv/Scripts/python.exe")
+      }
+      cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+        -DRBSCAN_BUILD_TESTS=ON `
+        -DRBSCAN_BUILD_PYTHON=ON `
+        -DRBSCAN_BUILD_EXAMPLES=ON `
+        -DRBSCAN_BUILD_TOOLS=ON `
+        -DRBSCAN_WARNINGS_AS_ERRORS=ON `
+        @pyArg
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      cmake --build build --config Release --parallel
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+# ------------------------------------------------------------------
+# Stage: Execute CTest Suite & Export JUnit Report
+# ------------------------------------------------------------------
+test:windows:
+  stage: test
+  needs:
+    - build:windows
+  script:
+    - |
+      $ErrorActionPreference = "Stop"
+      if (-not (Test-Path "build/bin/Release/rbscan.dll")) {
+        cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+          -DRBSCAN_BUILD_TESTS=ON `
+          -DRBSCAN_BUILD_PYTHON=ON `
+          -DRBSCAN_BUILD_EXAMPLES=ON `
+          -DRBSCAN_BUILD_TOOLS=ON `
+          -DRBSCAN_WARNINGS_AS_ERRORS=ON
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        cmake --build build --config Release --parallel
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      }
+      ctest --test-dir build -C Release --output-on-failure --output-junit ctest_report.xml
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  artifacts:
+    when: always
+    expire_in: 14 days
+    reports:
+      junit: build/ctest_report.xml
+
+# ------------------------------------------------------------------
+# Stage: Package DLLs, C++ SDK & Python Wheels as Job Artifacts
+# ------------------------------------------------------------------
+package:artifacts:
+  stage: package
+  needs:
+    - build:windows
+    - test:windows
+  script:
+    - |
+      $ErrorActionPreference = "Stop"
+      if (-not (Test-Path "build/bin/Release/rbscan.dll")) {
+        cmake -B build -S . -G "Visual Studio 17 2022" -A x64 `
+          -DRBSCAN_BUILD_TESTS=OFF `
+          -DRBSCAN_BUILD_PYTHON=OFF `
+          -DRBSCAN_BUILD_EXAMPLES=OFF `
+          -DRBSCAN_BUILD_TOOLS=ON
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        cmake --build build --config Release --parallel
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      }
+
+      # Clean previous packaging output (workspace persists on runner)
+      if (Test-Path "dist") { Remove-Item -Path "dist" -Recurse -Force }
+      New-Item -ItemType Directory -Path "dist/dll", "dist/wheels", "dist/sdk" -Force | Out-Null
+
+      # 1. Install the C++ SDK (rbscan.dll, rbscan_hdf5.dll, rbscan.exe, rbscan.lib,
+      #    headers, CMake package config, and embedded schemas)
+      cmake --install build --config Release --component sdk --prefix dist/sdk
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Copy the DLLs, import lib, and CLI executable to dist/dll/ for direct access
+      Copy-Item -Path "dist/sdk/bin/rbscan.dll"      -Destination "dist/dll/" -Force
+      Copy-Item -Path "dist/sdk/bin/rbscan_hdf5.dll" -Destination "dist/dll/" -Force
+      Copy-Item -Path "dist/sdk/bin/rbscan.exe"      -Destination "dist/dll/" -Force
+      Copy-Item -Path "dist/sdk/lib/rbscan.lib"      -Destination "dist/dll/" -Force
+
+      # Also bundle the full C++ SDK into a single archive
+      Compress-Archive -Path "dist/sdk/*" -DestinationPath "dist/rbscan-sdk-win64.zip" -Force
+      Remove-Item -Path "dist/sdk" -Recurse -Force
+
+      # 2. Build Python wheels (reuses prebuilt HDF5 in .deps/)
+      $uv = Get-Command uv -ErrorAction SilentlyContinue
+      if ($uv) {
+        $versions = ($env:RBSCAN_WHEEL_PYTHONS -split '\s+') | Where-Object { $_ }
+        foreach ($py in $versions) {
+          Write-Host "Building Python wheel for Python $py..."
+          uv build --wheel --python $py -o dist/wheels
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to build wheel for Python $py"
+            exit $LASTEXITCODE
+          }
+        }
+      } else {
+        Write-Host "uv not found; building wheel with default Python..."
+        python -m pip wheel . --no-deps -w dist/wheels
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      }
+      Remove-Item -Path "dist/wheels/.gitignore" -Force -ErrorAction SilentlyContinue
+
+      $wheels = Get-ChildItem -Path "dist/wheels" -Filter "*.whl"
+      if (-not $wheels) {
+        Write-Error "No Python wheels were built in dist/wheels"
+        exit 1
+      }
+
+      # Smoke-test the latest built wheel in an isolated environment
+      if ($uv) {
+        $latestWheel = $wheels | Sort-Object Name -Descending | Select-Object -First 1
+        Write-Host "Smoke-testing wheel $($latestWheel.Name)..."
+        uv run --isolated --no-project --with $latestWheel.FullName --with pytest --with h5py pytest python/tests
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      }
+
+      Write-Host "=== Packaged Artifacts ==="
+      Get-ChildItem -Path "dist" -Recurse -File | ForEach-Object {
+        Write-Host ("  {0} ({1:N1} KB)" -f $_.FullName.Substring($PWD.Path.Length + 1), ($_.Length / 1KB))
+      }
+  artifacts:
+    name: "rbscan-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHORT_SHA"
+    expire_in: 30 days
+    paths:
+      - "dist/dll/rbscan.dll"
+      - "dist/dll/rbscan_hdf5.dll"
+      - "dist/dll/rbscan.lib"
+      - "dist/dll/rbscan.exe"
+      - "dist/rbscan-sdk-win64.zip"
+      - "dist/wheels/*.whl"
