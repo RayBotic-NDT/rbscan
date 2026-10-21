@@ -3,6 +3,7 @@
 // in parallel) and the resolved geometry per projection. Prints the write rate.
 //
 //   rbscan_record_ct_scan <scan_dir> [projections=360] [size=1024] [threads=0]
+//                         [compression=shuffle_deflate|bitshuffle_lz4|deflate|none]
 
 #include <array>
 #include <chrono>
@@ -48,15 +49,31 @@ std::array<double, 4> frame_rotation(double theta) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: %s <scan_dir> [projections] [size] [threads]\n", argv[0]);
+        std::fprintf(
+            stderr,
+            "usage: %s <scan_dir> [projections] [size] [threads] [compression]\n",
+            argv[0]);
         return 2;
     }
     const std::string dir = argv[1];
     const std::uint64_t n = argc > 2 ? std::strtoull(argv[2], nullptr, 10) : 360;
     const std::uint64_t size = argc > 3 ? std::strtoull(argv[3], nullptr, 10) : 1024;
     const unsigned threads = argc > 4 ? static_cast<unsigned>(std::atoi(argv[4])) : 0;
+    const std::string codec = argc > 5 ? argv[5] : "shuffle_deflate";
 
     try {
+        rs::Compression compression = rs::Compression::ShuffleDeflate;
+        if (codec == "none") {
+            compression = rs::Compression::None;
+        } else if (codec == "deflate") {
+            compression = rs::Compression::Deflate;
+        } else if (codec == "shuffle_deflate") {
+            compression = rs::Compression::ShuffleDeflate;
+        } else if (codec == "bitshuffle_lz4") {
+            compression = rs::Compression::BitshuffleLZ4;
+        } else {
+            throw rs::Error("compression must be none, deflate, shuffle_deflate or bitshuffle_lz4");
+        }
         auto scan = rs::ScanWriter::create(dir, {.description = "synthetic CT scan",
                                                  .operator_name = "rbscan example",
                                                  .sample_id = "phantom_01"},
@@ -110,6 +127,7 @@ int main(int argc, char** argv) {
 
         rs::SegmentOptions seg;
         seg.threads = threads;
+        seg.compression.method = compression;
         auto images = detector.segmented_series("image", {{"height", size}, {"width", size}}, seg);
         auto det_state = detector.series("state");
         auto src_state = source.series("state");

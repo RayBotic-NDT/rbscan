@@ -47,7 +47,7 @@ def phantom(size: int, angle: float) -> np.ndarray:
     return (52000.0 * (1.0 - 0.7 * absorb) + texture).astype(np.uint16)
 
 
-def record_detector(scan_dir: str, t0: int, n: int, size: int) -> None:
+def record_detector(scan_dir: str, t0: int, n: int, size: int, compression: str) -> None:
     """The detector process: knows only the scan directory, its node and schema."""
     images = rbscan.SegmentedSeriesWriter.open(
         scan_dir, DETECTOR, "raybotic.xray_detector", "image",
@@ -55,19 +55,19 @@ def record_detector(scan_dir: str, t0: int, n: int, size: int) -> None:
         attributes=dict(frame_id="scan_detector", simulated=True, sensor_width=size,
                         sensor_height=size, pixel_pitch_u_um=PIXEL * 1e6,
                         pixel_pitch_v_um=PIXEL * 1e6),
-        segment_size=100)
+        segment_size=100, compression=compression)
     frames = [phantom(size, k * math.pi / 8) for k in range(16)]
     for i in range(n):
         images.append(t0 + i * PERIOD_NS, image=frames[i % len(frames)])
     images.close()
 
 
-def record(scan_dir: Path, n: int, size: int) -> None:
+def record(scan_dir: Path, n: int, size: int, compression: str = "shuffle_deflate") -> None:
     t0 = rbscan.now_ns()
 
     # The detector runs in its own process and writes its own segment files.
     detector_proc = mp.get_context("spawn").Process(
-        target=record_detector, args=(str(scan_dir), t0, n, size))
+        target=record_detector, args=(str(scan_dir), t0, n, size, compression))
 
     scan = rbscan.ScanWriter.create(scan_dir, description="synthetic CT scan",
                                     operator="rbscan example", sample_id="phantom_01",
@@ -166,10 +166,12 @@ def main() -> None:
     parser.add_argument("scan_dir", type=Path)
     parser.add_argument("--projections", type=int, default=360)
     parser.add_argument("--size", type=int, default=768)
+    parser.add_argument("--compression", default="shuffle_deflate",
+                        choices=("shuffle_deflate", "bitshuffle_lz4", "deflate", "none"))
     args = parser.parse_args()
 
     start = time.perf_counter()
-    record(args.scan_dir, args.projections, args.size)
+    record(args.scan_dir, args.projections, args.size, args.compression)
     seconds = time.perf_counter() - start
     mb = args.projections * args.size * args.size * 2 / 1e6
     print(f"recorded {args.projections} projections {args.size}x{args.size} "

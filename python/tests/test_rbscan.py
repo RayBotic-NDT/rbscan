@@ -244,3 +244,21 @@ def test_float_projections_and_volume(tmp_path):
     scan.finalize()
     labels, _ = rbscan.read_volume(tmp_path, "volumes/labels")
     assert labels.dtype == np.uint8 and labels.sum() == (vol > 0.5).sum()
+
+
+@pytest.mark.parametrize("compression", ["none", "deflate", "shuffle_deflate", "bitshuffle_lz4"])
+def test_compression_codecs(tmp_path, compression):
+    with rbscan.ScanWriter.create(tmp_path) as scan:
+        det = scan.add_node("detector_0", "raybotic.xray_detector", DETECTOR)
+        images = det.segmented_series("image", dims={"height": H, "width": W},
+                                      segment_size=3, compression=compression)
+        cal = det.series("calibration", dims={"height": H, "width": W}, compression=compression)
+        cal.append(0, dark=np.full((H, W), 1.5, np.float32), flat=np.ones((H, W), np.float32))
+        for i in range(7):
+            images.append(i, image=frame(i))
+    reader = rbscan.ScanReader(tmp_path)["sensors/detector_0"]
+    np.testing.assert_array_equal(reader["image"].read_sample("image", 5), frame(5))
+    np.testing.assert_array_equal(reader["image"].read("image", 2, 3)[2], frame(4))
+    assert reader["calibration"].read_sample("dark", 0)[0, 0] == pytest.approx(1.5)
+    assert rbscan.validate(tmp_path)["ok"]
+

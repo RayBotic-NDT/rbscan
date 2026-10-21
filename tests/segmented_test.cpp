@@ -92,7 +92,8 @@ TEST_P(SegmentedCompression, SplitsIntoSegmentsAndReadsBack) {
 
 INSTANTIATE_TEST_SUITE_P(All, SegmentedCompression,
                          ::testing::Values(rs::Compression::None, rs::Compression::Deflate,
-                                           rs::Compression::ShuffleDeflate));
+                                           rs::Compression::ShuffleDeflate,
+                                           rs::Compression::BitshuffleLZ4));
 
 TEST(Segmented, CompressionShrinksSmoothImages) {
     TempDir dir;
@@ -229,5 +230,52 @@ TEST(Segmented, FloatProjectionsWhenTheSchemaAllowsThem) {
     const auto images = scan.node("sensors/detector_0").series("image");
     EXPECT_EQ(images.dtype("image"), rs::DType::Float32);
     EXPECT_FLOAT_EQ(images.read_sample("image", 0).values<float>()[7], -1.5f);
+    EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
+}
+
+TEST(Segmented, BitshuffleLz4OddSizesAndAllReadPaths) {
+    // 33 x 29 = 957 elements: one full block of float32 (2048) does not fit,
+    // so there is a short block of 952 elements (row = 119, odd) plus 5 raw
+    // leftover elements.
+    constexpr std::uint64_t h = 33;
+    constexpr std::uint64_t w = 29;
+    constexpr std::uint64_t n = 7;
+    const auto value = [](std::uint64_t i, std::uint64_t k) {
+        return static_cast<float>(i) * 1000.0f + static_cast<float>(k) * 0.37f - 50.0f;
+    };
+    TempDir dir;
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto attrs = detector_attributes();
+        attrs["sensor_width"] = std::int64_t{w};
+        attrs["sensor_height"] = std::int64_t{h};
+        auto det = scan.add_node("detector_0", "raybotic.xray_detector", attrs);
+        rs::SegmentOptions opt;
+        opt.segment_size = 3;
+        opt.dtypes = {{"image", rs::DType::Float32}};
+        opt.compression.method = rs::Compression::BitshuffleLZ4;
+        auto images = det.segmented_series("image", {{"height", h}, {"width", w}}, opt);
+        std::vector<float> img(h * w);
+        for (std::uint64_t i = 0; i < n; ++i) {
+            for (std::uint64_t k = 0; k < h * w; ++k) img[k] = value(i, k);
+            images.append(static_cast<std::int64_t>(i), {{"image", rs::view(img.data(), {h, w})}});
+        }
+    }
+    const auto check = [&](const rs::SeriesReader& s, const char* how) {
+        ASSERT_EQ(s.size(), n) << how;
+        const auto all = s.read("image").values<float>();
+        for (std::uint64_t i = 0; i < n; ++i) {
+            for (std::uint64_t k = 0; k < h * w; ++k) {
+                ASSERT_EQ(all[i * h * w + k], value(i, k)) << how << " sample " << i << " " << k;
+            }
+        }
+        const auto one = s.read_sample("image", 4).values<float>();
+        ASSERT_EQ(one[h * w - 1], value(4, h * w - 1)) << how;
+    };
+    // Segment files directly (rbscan's own decoder) ...
+    check(rs::SeriesReader::open_segments(dir.path(), "sensors/detector_0", "image"), "segments");
+    // ... and the virtual dataset in the master file (HDF5 + registered filter).
+    const auto scan = rs::ScanReader::open(dir.path());
+    check(scan.node("sensors/detector_0").series("image"), "master");
     EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
 }

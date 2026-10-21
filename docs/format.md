@@ -71,8 +71,20 @@ shuffle + deflate.
 - Each segment holds `segment_size` samples (default 500); the last one may hold
   fewer.
 - Datasets: `time` and one per field, `[n, sample shape]`, chunked
-  (one image per chunk, smaller samples up to about 1 MB per chunk), shuffle +
-  deflate by default.
+  (one image per chunk, smaller samples up to about 1 MB per chunk).
+- Compression (`Compression`, `compression=` in Python):
+  - `ShuffleDeflate` / `"shuffle_deflate"` (default): HDF5 byte shuffle +
+    deflate. Built into every HDF5 installation; best compression ratio for
+    16-bit images.
+  - `BitshuffleLZ4` / `"bitshuffle_lz4"`: HDF5 filter 32008 (`bitshuffle` with
+    LZ4, as used by Dectris detectors). Decodes several times faster than
+    deflate at a slightly larger file size. rbscan reads and writes it natively
+    (and registers filter 32008 with HDF5 for virtual datasets); external tools
+    need the bitshuffle filter plugin (`import hdf5plugin` in Python before
+    opening with `h5py`).
+  - `Deflate` / `"deflate"`: zlib deflate without byte shuffle.
+  - `None` / `"none"`: uncompressed chunks, read directly into the destination
+    buffer without a copy.
 - Root attributes: `format = raybotic.scan.segment`, `format_version`,
   `node_path`, `schema`, `schema_json`, `series`, `segment_index`,
   `first_sample`, `segment_size`.
@@ -96,8 +108,11 @@ append() --copy--> chunk buffer --full--> thread pool (shuffle + deflate)
 - `append()` blocks only when `max_pending` chunks are waiting.
 - Every `flush_every` samples (default 16), partial chunks are written and the
   file is flushed, so SWMR readers see the newest samples.
-- The encoded chunks are byte-identical to what HDF5's own shuffle and deflate
-  filters produce, so any HDF5 reader decodes them.
+- The encoded chunks are byte-identical to what HDF5's shuffle, deflate and
+  bitshuffle (32008) filters produce. On read, rbscan looks up chunk offsets
+  and reads and decodes one-sample-per-chunk datasets outside the global HDF5
+  lock (using its own thread pool for range reads and direct OS positional
+  reads into the caller's buffer for uncompressed chunks).
 
 ### Several processes
 

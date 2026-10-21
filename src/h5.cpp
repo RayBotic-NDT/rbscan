@@ -1,5 +1,7 @@
 #include "h5.hpp"
 
+#include "compression.hpp"
+
 #include <cmath>
 #include <limits>
 #include <type_traits>
@@ -204,6 +206,7 @@ void init() {
         Lock lock(mutex());
         H5open();
         H5Eset_auto2(H5E_DEFAULT, nullptr, nullptr);
+        detail::register_filters();
     });
 }
 

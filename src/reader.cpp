@@ -8,6 +8,7 @@
 
 #include "compression.hpp"
 #include "internal.hpp"
+#include "raw_file.hpp"
 #include "thread_pool.hpp"
 #include "raybotic/scan/writer.hpp"
 #include "series_layout.hpp"
@@ -51,23 +52,59 @@ void read_rows(hid_t dataset, const FieldInfo& field, std::uint64_t start, std::
               "reading " + field.name);
 }
 
-// --- Reading chunks past HDF5's filter pipeline --------------------------------
+// --- Reading chunks past HDF5 ----------------------------------------------------
 //
-// HDF5 decompresses inside H5Dread, i.e. under the library-wide lock, so
-// threads reading images queue up behind each other. For datasets with one
-// sample per chunk and filters rbscan understands (shuffle, deflate) the
-// reader instead fetches the stored chunk under the lock (H5Dread_chunk, a
-// plain file read) and decodes it outside: in the calling thread for single
-// samples, in a thread pool for ranges.
+// HDF5 reads and decompresses inside H5Dread, i.e. under the library-wide lock,
+// so threads reading images queue up behind each other. For datasets with one
+// sample per chunk and filters rbscan understands (shuffle, deflate,
+// bitshuffle+LZ4) the reader instead only looks the chunk up under the lock,
+// then reads the stored bytes through its own file handle and decodes them
+// outside: in the calling thread for single samples, in a thread pool for
+// ranges. Uncompressed chunks go straight into the caller's buffer. Without an
+// own handle (file open for writing in this process, other file drivers) the
+// stored bytes come from H5Dread_chunk under the lock.
 
-/// Whether and how a dataset's chunks can be decoded by rbscan itself.
+/// Whether and how a dataset's chunks can be read by rbscan itself.
 struct DirectChunks {
     bool usable{false};
     /// Pipeline positions of the filters (bit i of the chunk's filter mask
     /// says filter i was skipped); -1 when absent.
     int shuffle{-1};
     int deflate{-1};
+    int bitshuffle{-1};
+    /// Own handle for the raw reads; null = H5Dread_chunk.
+    std::shared_ptr<detail::RawFile> file;
+
+    [[nodiscard]] static bool applied(int position, unsigned mask) {
+        return position >= 0 && (mask & (1u << static_cast<unsigned>(position))) == 0;
+    }
+    [[nodiscard]] bool any_applied(unsigned mask) const {
+        return applied(shuffle, mask) || applied(deflate, mask) || applied(bitshuffle, mask);
+    }
 };
+
+/// A second handle on the dataset's file, if raw chunk addresses can be read
+/// from it directly: opened read-only everywhere in this process (a writer here
+/// may still hold chunks in HDF5's cache), default driver, no user block.
+/// Caller holds the HDF5 lock.
+std::shared_ptr<detail::RawFile> raw_file_of(hid_t dataset) {
+    h5::Id file(H5Iget_file_id(dataset));
+    unsigned intent = 0;
+    if (!file || H5Fget_intent(file.get(), &intent) < 0 || (intent & H5F_ACC_RDWR) != 0) {
+        return nullptr;
+    }
+    h5::Id fapl(H5Fget_access_plist(file.get()));
+    if (!fapl || H5Pget_driver(fapl.get()) != H5FD_SEC2) return nullptr;
+    h5::Id fcpl(H5Fget_create_plist(file.get()));
+    hsize_t userblock = 0;
+    if (!fcpl || H5Pget_userblock(fcpl.get(), &userblock) < 0 || userblock != 0) return nullptr;
+    const ssize_t length = H5Fget_name(file.get(), nullptr, 0);
+    if (length <= 0) return nullptr;
+    std::string name(static_cast<std::size_t>(length), '\0');
+    if (H5Fget_name(file.get(), name.data(), name.size() + 1) < 0) return nullptr;
+    return detail::RawFile::open(
+        fs::path(std::u8string(reinterpret_cast<const char8_t*>(name.data()), name.size())));
+}
 
 DirectChunks inspect_chunks(hid_t dataset, const FieldInfo& field) {
     DirectChunks dc;
@@ -94,54 +131,90 @@ DirectChunks inspect_chunks(hid_t dataset, const FieldInfo& field) {
     const int filters = H5Pget_nfilters(dcpl.get());
     for (int i = 0; i < filters; ++i) {
         unsigned flags = 0;
-        std::size_t n_values = 0;
+        unsigned values[8] = {};
+        std::size_t n_values = 8;
         unsigned config = 0;
         const H5Z_filter_t id = H5Pget_filter2(dcpl.get(), static_cast<unsigned>(i), &flags,
-                                               &n_values, nullptr, 0, nullptr, &config);
+                                               &n_values, values, 0, nullptr, &config);
         if (id == H5Z_FILTER_SHUFFLE) {
             dc.shuffle = i;
         } else if (id == H5Z_FILTER_DEFLATE) {
             dc.deflate = i;
+        } else if (id == detail::bitshuffle_filter_id && n_values >= 5 &&
+                   values[4] == detail::bitshuffle_lz4 && values[2] == size) {
+            dc.bitshuffle = i;
         } else {
             H5Eclear2(H5E_DEFAULT);
-            return dc;  // fletcher32, szip, plugins: leave them to HDF5
+            return dc;  // fletcher32, szip, other plugins: leave them to HDF5
         }
     }
-    // Written shuffle first, then deflate; undone in reverse.
+    // Written shuffle first, then deflate; undone in reverse. Bitshuffle alone.
     if (dc.shuffle >= 0 && dc.deflate >= 0 && dc.shuffle > dc.deflate) return dc;
+    if (dc.bitshuffle >= 0 && filters > 1) return dc;
+    dc.file = raw_file_of(dataset);
+    H5Eclear2(H5E_DEFAULT);
     dc.usable = true;
     return dc;
 }
 
-struct RawChunk {
-    std::vector<std::byte> data;
-    std::uint32_t mask{0};
+/// Where one sample's chunk is stored and, without an own file handle, its bytes.
+struct StoredChunk {
+    haddr_t address{HADDR_UNDEF};
+    hsize_t size{0};
+    unsigned mask{0};
+    std::vector<std::byte> bytes;
 };
 
-/// The stored bytes of sample `index`'s chunk. False when the chunk is not
-/// allocated (then HDF5 has to supply the fill value).
-bool fetch_chunk(hid_t dataset, const FieldInfo& field, std::uint64_t index, RawChunk& raw) {
+/// Looks up sample `index`'s chunk under the HDF5 lock. False when the chunk is
+/// not allocated (then HDF5 has to supply the fill value).
+bool locate_chunk(hid_t dataset, const DirectChunks& dc, const FieldInfo& field,
+                  std::uint64_t index, StoredChunk& c) {
     h5::Lock lock(h5::mutex());
     std::vector<hsize_t> offset(field.sample_shape.size() + 1, 0);
     offset[0] = index;
-    hsize_t size = 0;
-    if (H5Dget_chunk_storage_size(dataset, offset.data(), &size) < 0 || size == 0) {
+    if (H5Dget_chunk_info_by_coord(dataset, offset.data(), &c.mask, &c.address, &c.size) < 0 ||
+        c.address == HADDR_UNDEF || c.size == 0) {
         H5Eclear2(H5E_DEFAULT);
         return false;
     }
-    raw.data.resize(static_cast<std::size_t>(size));
-    h5::check(H5Dread_chunk(dataset, H5P_DEFAULT, offset.data(), &raw.mask, raw.data.data()),
-              "H5Dread_chunk " + field.name);
+    if (!dc.file) {
+        c.bytes.resize(static_cast<std::size_t>(c.size));
+        h5::check(H5Dread_chunk(dataset, H5P_DEFAULT, offset.data(), &c.mask, c.bytes.data()),
+                  "H5Dread_chunk " + field.name);
+    }
     return true;
 }
 
-void decode(const DirectChunks& dc, const FieldInfo& field, const RawChunk& raw,
-            std::byte* out) {
-    const auto applied = [&](int position) {
-        return position >= 0 && (raw.mask & (1u << static_cast<unsigned>(position))) == 0;
-    };
-    detail::decode_chunk(raw.data.data(), raw.data.size(), out, field.sample_bytes(),
-                         dtype_size(field.dtype), applied(dc.deflate), applied(dc.shuffle));
+/// Reads (through the own handle) and decodes a located chunk into `out`.
+/// Makes no HDF5 calls, so it runs without the lock.
+void load_chunk(const DirectChunks& dc, const FieldInfo& field, const StoredChunk& c,
+                std::byte* out) {
+    const std::size_t bytes = field.sample_bytes();
+    const auto stored = static_cast<std::size_t>(c.size);
+    const std::byte* data = c.bytes.data();
+    if (dc.file) {
+        thread_local std::vector<std::byte> buffer;
+        std::byte* target = out;
+        if (dc.any_applied(c.mask)) {
+            buffer.resize(stored);
+            target = buffer.data();
+        } else if (stored != bytes) {
+            throw Error("chunk of " + field.name + " has an unexpected size");
+        }
+        if (!dc.file->read(c.address, target, stored)) {
+            throw Error("reading a chunk of " + field.name + " failed");
+        }
+        if (target == out) return;
+        data = target;
+    }
+    const std::size_t element = dtype_size(field.dtype);
+    if (DirectChunks::applied(dc.bitshuffle, c.mask)) {
+        detail::decode_bitshuffle_lz4(data, stored, out, bytes, element);
+        return;
+    }
+    detail::decode_chunk(data, stored, out, bytes, element,
+                         DirectChunks::applied(dc.deflate, c.mask),
+                         DirectChunks::applied(dc.shuffle, c.mask));
 }
 
 detail::ThreadPool& decode_pool() {
@@ -149,7 +222,7 @@ detail::ThreadPool& decode_pool() {
     return pool;
 }
 
-/// Rows [start, start + count) of one dataset, decoded by rbscan where it can.
+/// Rows [start, start + count) of one dataset, read by rbscan where it can.
 void read_samples(hid_t dataset, const DirectChunks& dc, const FieldInfo& field,
                   std::uint64_t start, std::uint64_t count, std::byte* out);
 
@@ -177,23 +250,24 @@ void read_samples(hid_t dataset, const DirectChunks& dc, const FieldInfo& field,
     }
     const std::size_t bytes = field.sample_bytes();
     if (count == 1) {
-        RawChunk raw;
-        if (fetch_chunk(dataset, field, start, raw)) {
-            decode(dc, field, raw, out);
+        StoredChunk c;
+        if (locate_chunk(dataset, dc, field, start, c)) {
+            load_chunk(dc, field, c, out);
         } else {
             read_rows(dataset, field, start, 1, out);
         }
         return;
     }
-    // Fetch one chunk after the other (file reads under the lock), decode them
-    // in parallel as they arrive.
+    // Look the chunks up one after the other (under the lock); read and decode
+    // them in parallel. The pool never takes the lock, so a caller holding it
+    // cannot deadlock.
     std::vector<std::future<void>> jobs;
     std::exception_ptr failed;
     for (std::uint64_t i = 0; i < count; ++i) {
         std::byte* target = out + i * bytes;
-        auto raw = std::make_shared<RawChunk>();
+        auto c = std::make_shared<StoredChunk>();
         try {
-            if (!fetch_chunk(dataset, field, start + i, *raw)) {
+            if (!locate_chunk(dataset, dc, field, start + i, *c)) {
                 read_rows(dataset, field, start + i, 1, target);
                 continue;
             }
@@ -202,7 +276,7 @@ void read_samples(hid_t dataset, const DirectChunks& dc, const FieldInfo& field,
             break;
         }
         jobs.push_back(decode_pool().submit(
-            [&dc, &field, raw, target] { decode(dc, field, *raw, target); }));
+            [&dc, &field, c, target] { load_chunk(dc, field, *c, target); }));
     }
     for (auto& j : jobs) {
         try {

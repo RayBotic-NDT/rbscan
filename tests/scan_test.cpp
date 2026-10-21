@@ -20,6 +20,31 @@ rs::Attributes robot_attributes() {
 
 }  // namespace
 
+TEST(Scan, InlineSeriesWithBitshuffleLz4) {
+    // Five samples of 6 float64 per chunk = 30 elements: a short block of 24
+    // plus 6 raw leftover elements. Inline chunks hold several samples, so
+    // reads go through HDF5 and the registered filter.
+    TempDir dir;
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto robot = scan.add_node("source_robot", "raybotic.robot_arm", robot_attributes());
+        rs::InlineOptions opt;
+        opt.chunk_bytes = 5 * 48;
+        opt.compression.method = rs::Compression::BitshuffleLZ4;
+        auto joints = robot.series("joint_states", {}, opt);
+        for (int i = 0; i < 23; ++i) {
+            std::vector<double> q(6, 0.1 * i - 1.0);
+            joints.append(i, {{"position", rs::view(q)}});
+        }
+        scan.finalize();
+    }
+    auto joints = rs::ScanReader::open(dir.path()).node("robots/source_robot").series("joint_states");
+    ASSERT_EQ(joints.size(), 23u);
+    const auto q = joints.read("position").values<double>();
+    for (int i = 0; i < 23; ++i) EXPECT_DOUBLE_EQ(q[i * 6 + 5], 0.1 * i - 1.0) << i;
+    EXPECT_TRUE(std::isnan(joints.read_sample("effort", 22).values<double>()[0]));
+}
+
 TEST(Scan, WritesAndReadsInlineSeries) {
     TempDir dir;
     {

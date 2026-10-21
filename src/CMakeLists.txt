@@ -7,6 +7,7 @@ add_library(rbscan SHARED
     geometry.cpp
     h5.cpp
     internal.cpp
+    raw_file.cpp
     reader.cpp
     schema.cpp
     segmented_writer.cpp
@@ -30,6 +31,7 @@ target_link_libraries(rbscan
     PRIVATE
         ${RBSCAN_HDF5_TARGET}
         libdeflate_static
+        rbscan_lz4
         nlohmann_json::nlohmann_json
         rbscan::warnings)
 set_target_properties(rbscan PROPERTIES

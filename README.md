@@ -27,8 +27,12 @@ part_42/
   **inline** in the master file.
 - Large streams (projections, camera images, point clouds) are **segmented**:
   each has its own writer, which can run in its own thread or process, and its
-  own segment files. Full chunks are compressed by a thread pool and written
-  with HDF5 direct chunk write, so `append()` only copies the sample and returns.
+  own segment files. Full chunks are compressed by a thread pool (`shuffle_deflate`
+  by default, `bitshuffle_lz4` — HDF5 filter 32008 — for multi-GB/s decoding, or
+  `none` for uncompressed storage) and written with HDF5 direct chunk write, so
+  `append()` only copies the sample and returns. On read, one-sample-per-chunk
+  datasets bypass the global HDF5 lock via positional file reads and parallel
+  chunk decoding.
 - `finalize()` links all segments into the master as **virtual datasets**, so
   plain HDF5 tools (h5py, HDFView, MATLAB) see one `[N, H, W]` dataset.
 - Segment files are written in **SWMR** mode, so a recording can be read while

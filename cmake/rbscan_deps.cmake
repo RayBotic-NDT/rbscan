@@ -11,8 +11,8 @@
 # at it and set RBSCAN_BUILD_HDF5=OFF.
 #
 # libdeflate does the parallel chunk compression (zlib-format streams, which the
-# HDF5 deflate filter reads), nlohmann_json parses the schemas. Both are small
-# and come in via FetchContent.
+# HDF5 deflate filter reads), LZ4 the Bitshuffle+LZ4 codec, nlohmann_json parses
+# the schemas. All are small and come in via FetchContent.
 
 include(FetchContent)
 
@@ -135,5 +135,14 @@ FetchContent_Declare(nlohmann_json
     URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
 set(JSON_Install OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(libdeflate nlohmann_json)
+# Only lz4.c is needed; its own CMake project lives in build/cmake.
+FetchContent_Declare(rbscan_lz4
+    URL https://github.com/lz4/lz4/releases/download/v1.10.0/lz4-1.10.0.tar.gz
+    SOURCE_SUBDIR _none)
+
+FetchContent_MakeAvailable(libdeflate nlohmann_json rbscan_lz4)
 set_target_properties(libdeflate_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_library(rbscan_lz4 STATIC "${rbscan_lz4_SOURCE_DIR}/lib/lz4.c")
+target_include_directories(rbscan_lz4 PUBLIC "${rbscan_lz4_SOURCE_DIR}/lib")
+set_target_properties(rbscan_lz4 PROPERTIES POSITION_INDEPENDENT_CODE ON)

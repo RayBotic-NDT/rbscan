@@ -28,11 +28,17 @@ enum class Compression {
     /// Byte shuffle + deflate (HDF5 shuffle + deflate filters). Best ratio for
     /// 16-bit images at about the same speed; the default.
     ShuffleDeflate,
+    /// Bitshuffle + LZ4 (HDF5 filter 32008, as used by Dectris and others):
+    /// decodes several times faster than deflate at a somewhat larger size.
+    /// rbscan reads and writes it natively; h5py needs `import hdf5plugin`,
+    /// other HDF5 tools the bitshuffle filter plugin. `level` is ignored.
+    BitshuffleLZ4,
 };
 
 struct CompressionOptions {
     Compression method{Compression::ShuffleDeflate};
-    /// 1 (fast) .. 9 (small). Level 1 is usually the right call for projections.
+    /// Deflate: 1 (fast) .. 9 (small). Level 1 is usually the right call for
+    /// projections.
     int level{1};
 };
 

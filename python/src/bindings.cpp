@@ -183,8 +183,10 @@ rs::CompressionOptions compression_options(const std::string& method, int level)
         c.method = rs::Compression::Deflate;
     } else if (method == "shuffle_deflate") {
         c.method = rs::Compression::ShuffleDeflate;
+    } else if (method == "bitshuffle_lz4") {
+        c.method = rs::Compression::BitshuffleLZ4;
     } else {
-        throw rs::Error("compression must be none, deflate or shuffle_deflate");
+        throw rs::Error("compression must be none, deflate, shuffle_deflate or bitshuffle_lz4");
     }
     c.level = level;
     return c;
