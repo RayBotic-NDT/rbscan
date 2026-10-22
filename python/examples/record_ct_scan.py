@@ -62,7 +62,7 @@ def record_detector(scan_dir: str, t0: int, n: int, size: int, compression: str)
     images.close()
 
 
-def record(scan_dir: Path, n: int, size: int, compression: str = "shuffle_deflate") -> None:
+def record(scan_dir: Path, n: int, size: int, compression: str = "bitshuffle_lz4") -> None:
     t0 = rbscan.now_ns()
 
     # The detector runs in its own process and writes its own segment files.
@@ -166,7 +166,7 @@ def main() -> None:
     parser.add_argument("scan_dir", type=Path)
     parser.add_argument("--projections", type=int, default=360)
     parser.add_argument("--size", type=int, default=768)
-    parser.add_argument("--compression", default="shuffle_deflate",
+    parser.add_argument("--compression", default="bitshuffle_lz4",
                         choices=("shuffle_deflate", "bitshuffle_lz4", "deflate", "none"))
     args = parser.parse_args()
 

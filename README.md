@@ -98,7 +98,7 @@ with rbscan.ScanWriter.create("D:/scans/part_42", description="housing", sample_
     images = det.segmented_series(
         "image",
         dims={"height": 1536, "width": 1536},
-        compression="bitshuffle_lz4",  # "shuffle_deflate" (default), "bitshuffle_lz4", "deflate", "none"
+        compression="bitshuffle_lz4",  # "bitshuffle_lz4" (default), "shuffle_deflate", "deflate", "none"
     )
 
     frame = np.zeros((1536, 1536), dtype=np.uint16)
@@ -187,8 +187,8 @@ Both `SeriesWriter` (inline) and `SegmentedSeriesWriter` (segmented) support fou
 
 | Codec (Python / CLI) | C++ Enum | Typical Size (16-bit CT) | Read Speed (1 / 8 threads) | Best For |
 | :--- | :--- | :---: | :---: | :--- |
-| `"shuffle_deflate"` *(default)* | `Compression::ShuffleDeflate` | ~44 % | ~0.5 / ~3.4 GB/s | Archival storage & maximum universal HDF5 compatibility (built-in filter). |
-| `"bitshuffle_lz4"` | `Compression::BitshuffleLZ4` | ~66 % | ~0.9 / ~6.0 GB/s | Fast interactive viewing & high-rate detectors (HDF5 filter `32008`, compatible with `hdf5plugin`). |
+| `"shuffle_deflate"` | `Compression::ShuffleDeflate` | ~44 % | ~0.5 / ~3.4 GB/s | Archival storage & maximum universal HDF5 compatibility (built-in filter). |
+| `"bitshuffle_lz4"` *(default)* | `Compression::BitshuffleLZ4` | ~66 % | ~0.9 / ~6.0 GB/s | Fast interactive viewing & high-rate detectors (HDF5 filter `32008`, compatible with `hdf5plugin`). |
 | `"deflate"` | `Compression::Deflate` | ~55 % | ~0.5 / ~3.2 GB/s | Standard zlib deflate without byte shuffle. |
 | `"none"` | `Compression::None` | 100 % | ~3.1 / ~5.6 GB/s | Maximum single-thread read speed on fast local NVMe SSDs (zero-copy direct positional reads). |
 

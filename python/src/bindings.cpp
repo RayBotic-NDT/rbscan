@@ -359,7 +359,7 @@ PYBIND11_MODULE(_rbscan, m) {
             py::arg("scan_dir"), py::arg("node_path"), py::arg("schema"),
             py::arg("series"), py::arg("dims") = py::none(),
             py::arg("attributes") = py::none(), py::arg("segment_size") = 500,
-            py::arg("compression") = "shuffle_deflate", py::arg("level") = 1,
+            py::arg("compression") = "bitshuffle_lz4", py::arg("level") = 1,
             py::arg("threads") = 0, py::arg("max_pending") = 64,
             py::arg("chunk_bytes") = 1 << 20, py::arg("swmr") = true,
             py::arg("flush_every") = 16, py::arg("dtypes") = py::none(),
@@ -416,7 +416,7 @@ PYBIND11_MODULE(_rbscan, m) {
                 return n.series(name, to_dims(dims), o);
             },
             py::arg("name"), py::arg("dims") = py::none(),
-            py::arg("compression") = "shuffle_deflate", py::arg("level") = 1,
+            py::arg("compression") = "bitshuffle_lz4", py::arg("level") = 1,
             py::arg("chunk_bytes") = 256 * 1024, py::arg("dtypes") = py::none(),
             "Writer of an inline series (master file); dtypes picks another allowed type "
             "per field.")
@@ -432,7 +432,7 @@ PYBIND11_MODULE(_rbscan, m) {
                                     max_pending, chunk_bytes, swmr, flush_every, dtypes));
             },
             py::arg("name"), py::arg("dims") = py::none(), py::arg("segment_size") = 500,
-            py::arg("compression") = "shuffle_deflate", py::arg("level") = 1,
+            py::arg("compression") = "bitshuffle_lz4", py::arg("level") = 1,
             py::arg("threads") = 0, py::arg("max_pending") = 64,
             py::arg("chunk_bytes") = 1 << 20, py::arg("swmr") = true,
             py::arg("flush_every") = 16, py::arg("dtypes") = py::none(),

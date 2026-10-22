@@ -38,7 +38,7 @@ variables:
   RBSCAN_WHEEL_PYTHONS: "3.11 3.12 3.13 3.14"
 
 # ------------------------------------------------------------------
-# Shared: Ensure uv + .venv (with Python headers, numpy, pybind11, pytest, h5py)
+# Shared: Ensure uv + .venv (with Python headers, numpy, pybind11, pytest, h5py, hdf5plugin)
 # ------------------------------------------------------------------
 # The GitLab Runner service runs as LocalSystem, where user-installed uv/Python
 # are not in the system PATH. Locate uv (or install into .deps/uv) and provision
@@ -73,7 +73,7 @@ variables:
     uv venv --python 3.12 .venv
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   }
-  uv pip install --python $venvPython "pybind11>=3.0" "numpy>=1.24" "pytest>=8" "h5py>=3.10"
+  uv pip install --python $venvPython "pybind11>=3.0" "numpy>=1.24" "pytest>=8" "h5py>=3.10" "hdf5plugin>=4.4"
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   $cmakePython = ($venvPython -replace '\\', '/')
   Write-Host "Using Python for CMake: $cmakePython"
@@ -241,7 +241,7 @@ package:artifacts:
       $testWheel = $wheels | Where-Object { $_.Name -match '-cp312-' } | Select-Object -First 1
       if ($testWheel) {
         Write-Host "Smoke-testing wheel $($testWheel.Name)..."
-        uv run --isolated --no-project --python 3.12 --with $testWheel.FullName --with pytest --with h5py pytest python/tests
+        uv run --isolated --no-project --python 3.12 --with $testWheel.FullName --with pytest --with h5py --with hdf5plugin pytest python/tests
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       }
 

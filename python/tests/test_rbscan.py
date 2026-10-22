@@ -25,7 +25,7 @@ def frame(i: int) -> np.ndarray:
     return ((i * 7 + y * 3 + x) % 65536).astype(np.uint16)
 
 
-def write_ct_scan(path: Path, n: int = 13) -> None:
+def write_ct_scan(path: Path, n: int = 13, compression: str = "bitshuffle_lz4") -> None:
     with rbscan.ScanWriter.create(path, description="pytest", operator="ci", run=7) as scan:
         scan.add_node(
             "source_0", "raybotic.xray_source",
@@ -37,7 +37,7 @@ def write_ct_scan(path: Path, n: int = 13) -> None:
         )
         det = scan.add_node("detector_0", "raybotic.xray_detector", DETECTOR)
         images = det.segmented_series("image", dims={"height": H, "width": W}, segment_size=4,
-                                      threads=3)
+                                      threads=3, compression=compression)
         det.series("calibration", dims={"height": H, "width": W}).append(
             0, dark=np.zeros((H, W), np.float32), flat=np.ones((H, W)))
         acq = scan.add_node("scan_0", "raybotic.ct_acquisition", type="ct_scan",
@@ -104,9 +104,23 @@ def test_roundtrip(tmp_path):
     assert bool(src[0]["emission_permitted"]) is True
 
 
-def test_h5py_sees_one_virtual_dataset(tmp_path):
+def _h5py_for(compression: str):
+    """h5py, plus the reference bitshuffle filter for rbscan's default codec."""
     h5py = pytest.importorskip("h5py")
-    write_ct_scan(tmp_path)
+    if compression == "bitshuffle_lz4":
+        pytest.importorskip("hdf5plugin")  # registers filter 32008 with h5py
+    return h5py
+
+
+# shuffle_deflate: any HDF5 reads it. bitshuffle_lz4 (the default): checks that
+# rbscan's chunks decode with the reference bitshuffle implementation.
+H5PY_CODECS = pytest.mark.parametrize("compression", ["shuffle_deflate", "bitshuffle_lz4"])
+
+
+@H5PY_CODECS
+def test_h5py_sees_one_virtual_dataset(tmp_path, compression):
+    h5py = _h5py_for(compression)
+    write_ct_scan(tmp_path, compression=compression)
     # rbscan's own HDF5 is rbscan_hdf5.dll, so h5py can be loaded alongside.
     with h5py.File(tmp_path / rbscan.MASTER_FILE_NAME, "r") as f:
         assert f.attrs["format"] == "raybotic.scan"
@@ -122,9 +136,10 @@ def test_h5py_sees_one_virtual_dataset(tmp_path):
         assert f["acquisitions/scan_0/projections/flags"].shape == (13,)
 
 
-def test_scan_can_be_moved(tmp_path):
-    h5py = pytest.importorskip("h5py")
-    write_ct_scan(tmp_path / "a")
+@H5PY_CODECS
+def test_scan_can_be_moved(tmp_path, compression):
+    h5py = _h5py_for(compression)
+    write_ct_scan(tmp_path / "a", compression=compression)
     (tmp_path / "a").rename(tmp_path / "b")
     np.testing.assert_array_equal(
         rbscan.ScanReader(tmp_path / "b")["sensors/detector_0"]["image"].read_sample("image", 5),

@@ -73,10 +73,10 @@ shuffle + deflate.
 - Datasets: `time` and one per field, `[n, sample shape]`, chunked
   (one image per chunk, smaller samples up to about 1 MB per chunk).
 - Compression (`Compression`, `compression=` in Python):
-  - `ShuffleDeflate` / `"shuffle_deflate"` (default): HDF5 byte shuffle +
+  - `ShuffleDeflate` / `"shuffle_deflate"`: HDF5 byte shuffle +
     deflate. Built into every HDF5 installation; best compression ratio for
     16-bit images.
-  - `BitshuffleLZ4` / `"bitshuffle_lz4"`: HDF5 filter 32008 (`bitshuffle` with
+  - `BitshuffleLZ4` / `"bitshuffle_lz4"` (default): HDF5 filter 32008 (`bitshuffle` with
     LZ4, as used by Dectris detectors). Decodes several times faster than
     deflate at a slightly larger file size. rbscan reads and writes it natively
     (and registers filter 32008 with HDF5 for virtual datasets); external tools
