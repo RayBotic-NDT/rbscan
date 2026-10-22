@@ -197,7 +197,9 @@ class RBSCAN_API ScanWriter {
     /// given. Abstract schemas cannot be instantiated.
     NodeWriter add_node(std::string_view name, std::string_view schema_id,
                         const Attributes& attributes = {});
-    /// A node added before, by path ("sensors/detector_0").
+    /// A node by path ("sensors/detector_0"): one added by this writer, or one
+    /// of an earlier session, whose attributes can then be changed (not its
+    /// series).
     [[nodiscard]] NodeWriter node(std::string_view path) const;
     /// Whether the master holds a node at `path` (from this or an earlier session).
     [[nodiscard]] bool has_node(std::string_view path) const;

@@ -29,7 +29,8 @@
     "value_units": { "dtype": "string", "description": "Units of the values, e.g. 1/m." },
     "acquisition": { "dtype": "string", "description": "Node path of the acquisition it was made from." },
     "software": { "dtype": "string" },
-    "parameters": { "dtype": "string", "description": "Settings it was made with, e.g. the reco.json (JSON)." }
+    "parameters": { "dtype": "string", "description": "Settings it was made with, e.g. the reco.json (JSON)." },
+    "reconstruction": { "dtype": "string", "description": "Node path of the reconstructions/<run> that made it." }
   },
   "series": {
     "slices": {

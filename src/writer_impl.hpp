@@ -114,6 +114,9 @@ struct NodeWriter::Impl {
     std::weak_ptr<ScanWriter::Impl> scan;
     std::string path;
     const Schema* schema{nullptr};
+    /// For a node of an earlier session (ScanWriter::node()): its stored
+    /// schema. Such a node only takes attributes.
+    std::shared_ptr<const Schema> stored_schema;
     h5::Id group;
     Attributes attributes;
     std::map<std::string, std::shared_ptr<SeriesWriter::Impl>, std::less<>> inline_series;

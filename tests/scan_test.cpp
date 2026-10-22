@@ -230,3 +230,44 @@ TEST(Scan, OpenExistingScanToAddAndReplaceNodes) {
     EXPECT_EQ(std::get<std::string>(*node.attribute("document")), "second");
     EXPECT_EQ(node.series("markers").size(), 1u);
 }
+
+TEST(Scan, ReconstructionSettingsAndRunStatus) {
+    TempDir dir;
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto run = scan.add_node("run_1", "raybotic.reconstruction",
+                                 {{"config", std::string(R"({"version": "1.0"})")},
+                                  {"config_format", std::string("raybotic.reco/1.0")},
+                                  {"algorithm", std::string("fbp")},
+                                  {"roi_names", std::vector<std::string>{"volume"}},
+                                  {"status", std::string("running")}});
+        EXPECT_EQ(run.path(), "reconstructions/run_1");
+        const bool enabled = true;
+        const std::uint32_t dims[3] = {64, 64, 32};
+        const double voxel[3] = {1e-4, 1e-4, 2e-4};
+        const double mid[3] = {0.0, 0.01, -0.02};
+        run.series("rois").append(1, {{"enabled", rs::scalar(enabled)},
+                                      {"dims", rs::view(dims, {3})},
+                                      {"voxel_size", rs::view(voxel, {3})},
+                                      {"midpoint", rs::view(mid, {3})}});
+        EXPECT_THROW(scan.add_node("bad", "raybotic.reconstruction", {}), rs::Error);  // no config
+        scan.finalize();
+    }
+    {
+        // A later session updates the run's status without touching its series.
+        auto scan = rs::ScanWriter::open(dir.path());
+        auto run = scan.node("reconstructions/run_1");
+        run.set_attribute("status", std::string("ok"));
+        run.set_attribute("volume", std::string("volumes/reco"));
+        EXPECT_THROW((void)run.series("rois"), rs::Error);
+        EXPECT_THROW((void)scan.node("reconstructions/missing"), rs::Error);
+        scan.finalize();
+    }
+    const auto reader = rs::ScanReader::open(dir.path());
+    const auto run = reader.node("reconstructions/run_1");
+    EXPECT_EQ(std::get<std::string>(*run.attribute("status")), "ok");
+    EXPECT_EQ(std::get<std::string>(*run.attribute("volume")), "volumes/reco");
+    EXPECT_EQ(std::get<std::string>(*run.attribute("algorithm")), "fbp");
+    EXPECT_EQ(run.series("rois").read_sample("dims", 0).values<std::uint32_t>()[2], 32u);
+    EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
+}

@@ -165,7 +165,30 @@ segmented series `slices` is slice k, `[height, width]` in float32, uint16 or
 uint8. Attribute `voxel_to_world` (4x4, row-major, m) maps voxel index
 (i, j, k, 1) = (column, row, slice, 1) to the world, with indices at voxel
 centres; `voxel_size` repeats its column norms. `acquisition` and `parameters`
-say what it was made from and how.
+say what it was made from and how; `reconstruction` names the run that made it.
+
+## Reconstruction settings
+
+`reconstructions/<name>` (`raybotic.reconstruction/1`) holds reconstruction
+settings. Attribute `config` is the complete settings document (the RayBotic
+engine's reco.json) and the source of truth; `algorithm`, `acquisition`,
+`roi_names`, `active_roi` and the inline series `rois` (`enabled`, `dims`,
+`voxel_size` and `midpoint` in m) repeat parts of it for tools that do not
+parse it.
+
+- `reconstructions/current` is the configuration being edited.
+- Every run leaves `reconstructions/run_<UTC time>` with the settings it used,
+  `status` (`running`, `ok`, `failed`), `volume` (the node it produced),
+  `software` and `message`; the volume points back with `reconstruction`.
+- The acquisition's stored geometry is final: `detector_shift` moves the
+  detector on top of it, `negate_detector_orientation = true` keeps it as
+  stored (false flips u and v). A scan converted from EZRT therefore gets its
+  folder's reco.json with the convention taken out (it is baked into the
+  geometry) and without the folder list.
+- Files the settings name (bad pixel mask, jitter shifts) stay outside the scan.
+
+`ScanWriter::node(path)` also opens a node of an earlier session, so a run's
+`status` can be set when it ends; such a node takes attributes, not series.
 
 ## Schemas
 

@@ -1,0 +1,32 @@
+{
+  "schema": "raybotic.reconstruction",
+  "version": 1,
+  "category": "reconstructions",
+  "description": "Reconstruction settings. 'config' holds the complete settings document (the reco.json of the RayBotic engine) and is the source of truth; the other attributes and the rois table repeat parts of it for tools that do not parse it. reconstructions/current is the configuration being edited; every run leaves an unchanged copy (status, volume set) next to it. Files 'config' names (bad pixel mask, jitter shifts) stay outside the scan. Detector corrections in 'config' (detector_shift, negate_detector_orientation) apply on top of the acquisition's stored geometry, which is final.",
+  "attributes": {
+    "config": { "dtype": "string", "required": true, "description": "The complete settings document (JSON)." },
+    "config_format": { "dtype": "string", "required": true, "description": "Format of 'config', e.g. raybotic.reco/1.0." },
+    "acquisition": { "dtype": "string", "description": "Node path of the ct_acquisition whose projections are reconstructed." },
+    "algorithm": { "dtype": "string", "description": "fbp, srm, art, helix, ... (from config)." },
+    "roi_names": { "dtype": "string", "array": true, "description": "Name of each row of rois." },
+    "active_roi": { "dtype": "uint32", "description": "Row of rois that 'config' reconstructs." },
+    "modified": { "dtype": "string", "description": "ISO 8601 UTC, when 'config' was last written." },
+    "application": { "dtype": "string", "description": "What wrote 'config', e.g. RayBotic Viewer 0.1.1." },
+    "status": { "dtype": "string", "description": "Runs only: running, ok, cancelled or failed." },
+    "volume": { "dtype": "string", "description": "Runs only: node path of the volume it produced." },
+    "software": { "dtype": "string", "description": "Runs only: engine name and version." },
+    "message": { "dtype": "string", "description": "Runs only: error or warning text." }
+  },
+  "series": {
+    "rois": {
+      "storage": "inline",
+      "description": "One row per reconstruction region; time = when 'config' was written.",
+      "fields": {
+        "enabled": { "dtype": "bool" },
+        "dims": { "dtype": "uint32", "shape": [3], "units": "voxel", "description": "Voxels along x, y, z." },
+        "voxel_size": { "dtype": "float64", "shape": [3], "units": "m" },
+        "midpoint": { "dtype": "float64", "shape": [3], "units": "m", "description": "Centre of the grid in the world frame." }
+      }
+    }
+  }
+}

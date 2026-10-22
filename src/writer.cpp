@@ -100,6 +100,9 @@ void NodeWriter::set_attribute(std::string_view name, const Value& value) {
 SeriesWriter NodeWriter::series(std::string_view name, const Dims& dims,
                                 const InlineOptions& options) {
     auto scan = impl_->lock_scan();
+    if (impl_->stored_schema) {
+        throw Error("node '" + impl_->path + "' is from an earlier session: only its attributes can be changed");
+    }
     if (auto it = impl_->inline_series.find(name); it != impl_->inline_series.end()) {
         return SeriesWriter(it->second);
     }
@@ -129,6 +132,9 @@ SegmentedSeriesWriter NodeWriter::segmented_series(std::string_view name,
                                                    const Dims& dims,
                                                    const SegmentOptions& options) {
     auto scan = impl_->lock_scan();
+    if (impl_->stored_schema) {
+        throw Error("node '" + impl_->path + "' is from an earlier session: only its attributes can be changed");
+    }
     if (auto it = impl_->segmented.find(name); it != impl_->segmented.end()) {
         return SegmentedSeriesWriter(it->second);
     }
@@ -293,8 +299,11 @@ void ScanWriter::remove_node(std::string_view path) {
     impl_->require_open();
     const std::string p(path);
     for (const auto& n : impl_->nodes) {
-        if (n->path == p) throw Error("node '" + p + "' was added by this writer");
+        if (n->path == p && !n->stored_schema) {
+            throw Error("node '" + p + "' was added by this writer");
+        }
     }
+    std::erase_if(impl_->nodes, [&](const auto& n) { return n->path == p; });
     std::error_code ec;
     for (const auto& series : fs::directory_iterator(impl_->dir / fs::path(p), ec)) {
         if (series.is_directory() && !detail::list_segments(series.path()).empty()) {
@@ -328,7 +337,22 @@ NodeWriter ScanWriter::node(std::string_view path) const {
     for (const auto& n : impl_->nodes) {
         if (n->path == path) return NodeWriter(n);
     }
-    throw Error("no node '" + std::string(path) + "'");
+    if (!has_node(path)) throw Error("no node '" + std::string(path) + "'");
+    // A node of an earlier session: attributes can be changed, series not.
+    h5::Lock lock(h5::mutex());
+    auto n = std::make_shared<NodeWriter::Impl>();
+    n->scan = impl_;
+    n->path = std::string(path);
+    n->group = h5::open_group(impl_->file.get(), n->path);
+    const auto json = h5::read_string_attribute(n->group.get(), "schema_json");
+    if (!json) throw Error("'" + n->path + "' is not a node (no schema)");
+    n->stored_schema = std::make_shared<const Schema>(parse_schema(*json));
+    n->schema = n->stored_schema.get();
+    n->attributes = h5::read_attributes(n->group.get());
+    n->attributes.erase("schema");
+    n->attributes.erase("schema_json");
+    impl_->nodes.push_back(n);
+    return NodeWriter(std::move(n));
 }
 
 void ScanWriter::flush() {
