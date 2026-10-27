@@ -101,7 +101,8 @@ SeriesWriter NodeWriter::series(std::string_view name, const Dims& dims,
                                 const InlineOptions& options) {
     auto scan = impl_->lock_scan();
     if (impl_->stored_schema) {
-        throw Error("node '" + impl_->path + "' is from an earlier session: only its attributes can be changed");
+        throw Error("node '" + impl_->path +
+                    "' is from an earlier session: only its attributes can be changed");
     }
     if (auto it = impl_->inline_series.find(name); it != impl_->inline_series.end()) {
         return SeriesWriter(it->second);
@@ -133,7 +134,8 @@ SegmentedSeriesWriter NodeWriter::segmented_series(std::string_view name,
                                                    const SegmentOptions& options) {
     auto scan = impl_->lock_scan();
     if (impl_->stored_schema) {
-        throw Error("node '" + impl_->path + "' is from an earlier session: only its attributes can be changed");
+        throw Error("node '" + impl_->path +
+                    "' is from an earlier session: only its attributes can be changed");
     }
     if (auto it = impl_->segmented.find(name); it != impl_->segmented.end()) {
         return SegmentedSeriesWriter(it->second);

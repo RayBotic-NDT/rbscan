@@ -250,7 +250,8 @@ TEST(Scan, ReconstructionSettingsAndRunStatus) {
                                       {"dims", rs::view(dims, {3})},
                                       {"voxel_size", rs::view(voxel, {3})},
                                       {"midpoint", rs::view(mid, {3})}});
-        EXPECT_THROW(scan.add_node("bad", "raybotic.reconstruction", {}), rs::Error);  // no config
+        EXPECT_THROW(scan.add_node("bad", "raybotic.reconstruction", {}),
+                     rs::Error);  // no config
         scan.finalize();
     }
     {
