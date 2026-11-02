@@ -1,7 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <atomic>
 #include <raybotic/scan/rbscan.hpp>
 #include <thread>
+#include <vector>
 
 #include "test_util.hpp"
 
@@ -149,6 +152,49 @@ TEST(Segmented, LiveReadWhileRecording) {
     scan.finalize();
     check_images(
         rs::ScanReader::open(dir.path()).node("sensors/detector_0").series("image"), 9);
+}
+
+TEST(Segmented, RefreshWhileOtherThreadsRead) {
+    TempDir dir;
+    auto scan = rs::ScanWriter::create(dir.path());
+    auto det =
+        scan.add_node("detector_0", "raybotic.xray_detector", detector_attributes());
+    rs::SegmentOptions opt;
+    opt.segment_size = 1;  // a new segment file per image, as the live view records
+    opt.flush_every = 0;
+    auto images = det.segmented_series("image", {{"height", H}, {"width", W}}, opt);
+    auto add = [&](std::uint64_t i) {
+        const auto img = image(i);
+        images.append(static_cast<std::int64_t>(1000 * i),
+                      {{"image", rs::view(img.data(), {H, W})}});
+        images.flush();
+    };
+    add(0);
+    auto live =
+        rs::SeriesReader::open_segments(dir.path(), "sensors/detector_0", "image");
+
+    std::atomic<bool> stop{false};
+    std::atomic<int> bad{0};
+    std::vector<std::thread> readers;
+    for (int t = 0; t < 4; ++t) {
+        readers.emplace_back([&] {
+            while (!stop.load()) {
+                const auto n = live.size();
+                const auto i = n - 1;
+                const auto a = live.read_sample("image", i);
+                if (a.values<std::uint16_t>()[5] != pixel(i, 0, 5)) ++bad;
+            }
+        });
+    }
+    for (std::uint64_t i = 1; i < 40; ++i) {
+        add(i);
+        live.refresh();
+    }
+    stop = true;
+    for (auto& r : readers) r.join();
+    EXPECT_EQ(bad.load(), 0);
+    EXPECT_EQ(live.size(), 40u);
+    scan.finalize();
 }
 
 TEST(Segmented, OtherProcessWriterIsLinkedOnFinalize) {

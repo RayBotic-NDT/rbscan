@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <raybotic/scan/rbscan.hpp>
 
 namespace rs = raybotic::scan;

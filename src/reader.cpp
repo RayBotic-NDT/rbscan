@@ -4,6 +4,8 @@
 #include <bit>
 #include <cstring>
 #include <future>
+#include <mutex>
+#include <shared_mutex>
 #include <thread>
 
 #include "compression.hpp"
@@ -364,8 +366,19 @@ struct SegmentSeries final : SeriesReader::Impl {
     };
     fs::path dir;
     std::vector<Segment> segments;
+    /// refresh() changes `segments` while other threads may read samples.
+    mutable std::shared_mutex segments_mutex;
+    /// Taken by refresh() while it waits for the exclusive lock, so readers
+    /// that keep coming cannot starve it (glibc's rwlock prefers readers).
+    mutable std::mutex refresh_gate;
+
+    std::shared_lock<std::shared_mutex> lock_segments() const {
+        std::lock_guard gate(refresh_gate);
+        return std::shared_lock(segments_mutex);
+    }
 
     std::uint64_t size() const override {
+        const auto lock = lock_segments();
         return segments.empty() ? 0 : segments.back().first + segments.back().samples;
     }
 
@@ -376,6 +389,10 @@ struct SegmentSeries final : SeriesReader::Impl {
     }
 
     void refresh() override {
+        // Segment lock first, then HDF5's: read() takes them in the same order.
+        std::unique_lock gate(refresh_gate);
+        std::unique_lock segments_lock(segments_mutex);
+        gate.unlock();
         h5::Lock lock(h5::mutex());
         if (!segments.empty()) {
             auto& last = segments.back();
@@ -412,7 +429,8 @@ struct SegmentSeries final : SeriesReader::Impl {
             } catch (const Error&) {
                 break;  // being created right now; picked up by the next refresh
             }
-            s.first = size();
+            s.first =
+                segments.empty() ? 0 : segments.back().first + segments.back().samples;
             s.samples = samples_of(s);
             segments.push_back(std::move(s));
         }
@@ -422,6 +440,7 @@ struct SegmentSeries final : SeriesReader::Impl {
     void read(std::size_t field, std::uint64_t start, std::uint64_t count,
               std::byte* out) const override {
         const auto bytes = fields[field].sample_bytes();
+        const auto lock = lock_segments();
         for (const auto& s : segments) {
             if (count == 0) break;
             const auto end = s.first + s.samples;
@@ -631,7 +650,20 @@ ScanReader ScanReader::open(const fs::path& path) {
     const fs::path master = fs::is_directory(path) ? path / master_file_name : path;
     auto impl = std::make_shared<Impl>();
     impl->dir = master.parent_path();
-    impl->file = h5::open_file(detail::utf8(master), H5F_ACC_RDONLY);
+    try {
+        impl->file = h5::open_file(detail::utf8(master), H5F_ACC_RDONLY);
+    } catch (const Error& e) {
+        // Open for writing elsewhere (file lock), or left so by a crashed
+        // writer (superblock status flags).
+        const std::string_view what = e.what();
+        if (what.find("already open for write") == std::string_view::npos &&
+            what.find("unable to lock the file") == std::string_view::npos)
+            throw;
+        throw Error(detail::utf8(master) +
+                    " is being written by another process, or its writer crashed "
+                    "(then run 'rbscan rebuild')\n" +
+                    e.what());
+    }
     const auto format = h5::read_string_attribute(impl->file.get(), "format");
     if (format != format_name) {
         throw Error(detail::utf8(master) + " is not a " + std::string(format_name) +

@@ -22,3 +22,6 @@ __pycache__/
 .idea/
 .claude/
 CMakeUserPresets.json
+
+# Local viewer layout (Dear ImGui)
+raybotic_viewer.ini

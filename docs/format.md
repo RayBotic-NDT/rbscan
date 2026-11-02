@@ -128,6 +128,12 @@ The process that owns the master calls `finalize()` when everything is done.
 If it finishes earlier, call `ScanWriter::rebuild(scan_dir)` afterwards. Both
 scan the directory and link every segment they find.
 
+If a writer crashes or is killed, the master keeps `complete = false` and the
+HDF5 superblock still says it is open for writing, so readers refuse it.
+`rebuild` clears that state (as `h5clear -s` would) and links the segments; every
+sample flushed before the crash is kept. Run it only once no process writes the
+scan any more (HDF5 file locking refuses it while the writer is alive).
+
 While the master is open for writing, other processes cannot open it (HDF5
 file locking). To follow a recording live, use
 `SeriesReader::open_segments(scan_dir, node_path, series)` and `refresh()`.
@@ -188,7 +194,32 @@ parse it.
 - Files the settings name (bad pixel mask, jitter shifts) stay outside the scan.
 
 `ScanWriter::node(path)` also opens a node of an earlier session, so a run's
-`status` can be set when it ends; such a node takes attributes, not series.
+`status` can be set when it ends. Such a node takes attributes, and its stored
+inline series go on: `series(name)` resumes appending after the last sample
+(times must not decrease), with the series' stored types, chunking and
+compression. It takes no new series and no segmented ones.
+
+## Trajectory plans
+
+`trajectories/<name>` (`raybotic.trajectory_plan/1`) holds planned scan
+trajectories, driven one after another. Both tables are plain series, no
+document to parse:
+
+- `trajectories`: one row per trajectory in drive order. `kind` (0 circle,
+  1 laminography), `centre` (m), `axis`, `start_direction`, `tilt` (deg),
+  `fod` and `fdd` (m), `projections`, `start_angle` and `range` (deg),
+  `counter_clockwise` describe the orbit it was generated from; `first_pose`
+  and `pose_count` are its rows in `poses`.
+- `poses`: one row per planned pose, trajectory after trajectory. `trajectory`
+  (row in `trajectories`), `angle` (deg on the orbit), `skip` (switched off),
+  `manual` (moved by hand), and the ROI, source and detector frames as
+  `*_position` (m) and `*_rotation` (quaternion x, y, z, w) in the world frame.
+  The ROI frame has z towards the source and y up. Every pose is stored in
+  full, also those on the orbit, so a reader needs no orbit generator.
+
+Both series take the time the plan was written for every row. A plan made
+before a scan can live in a scan of its own; `acquisition` names the
+acquisition recorded from it.
 
 ## Schemas
 

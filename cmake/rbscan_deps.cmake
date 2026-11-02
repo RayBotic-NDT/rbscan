@@ -120,6 +120,27 @@ if(NOT RBSCAN_HDF5_TARGET)
     message(FATAL_ERROR "rbscan: HDF5 found, but without a shared C library target")
 endif()
 set(RBSCAN_HDF5_TARGET "${RBSCAN_HDF5_TARGET}" CACHE INTERNAL "HDF5 target rbscan links")
+
+# The HDF5 runtime library to ship, and the name to ship it under: on Linux the
+# soname (librbscan_hdf5.so.310), which is what the loader looks for, so no
+# symlinks are needed in the SDK or the wheel.
+foreach(_cfg _RELEASE _NOCONFIG "")
+    get_target_property(_loc ${RBSCAN_HDF5_TARGET} IMPORTED_LOCATION${_cfg})
+    if(_loc)
+        get_target_property(_soname ${RBSCAN_HDF5_TARGET} IMPORTED_SONAME${_cfg})
+        break()
+    endif()
+endforeach()
+if(NOT _loc)
+    message(FATAL_ERROR "rbscan: no runtime library location for ${RBSCAN_HDF5_TARGET}")
+endif()
+set(RBSCAN_HDF5_RUNTIME_FILE "${_loc}" CACHE INTERNAL "")
+if(_soname AND NOT WIN32)
+    get_filename_component(_name "${_soname}" NAME)
+else()
+    get_filename_component(_name "${_loc}" NAME)
+endif()
+set(RBSCAN_HDF5_RUNTIME_NAME "${_name}" CACHE INTERNAL "")
 message(STATUS "rbscan: HDF5 ${HDF5_VERSION} (${RBSCAN_HDF5_TARGET})")
 
 FetchContent_Declare(libdeflate

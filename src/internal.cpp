@@ -105,7 +105,7 @@ std::string now_iso8601() {
 #else
     gmtime_r(&t, &tm);
 #endif
-    char buf[40];
+    char buf[96];  // room for any int, or GCC warns about truncation
     std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
                   tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min,
                   tm.tm_sec, static_cast<int>(ms));

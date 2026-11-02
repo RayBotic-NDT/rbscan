@@ -1,4 +1,4 @@
-find_package(Python 3.9 COMPONENTS Interpreter Development.Module REQUIRED)
+find_package(Python 3.11 COMPONENTS Interpreter Development.Module REQUIRED)
 
 # pybind11 from the build environment (pip / scikit-build-core), else fetched.
 if(NOT pybind11_DIR)
@@ -43,4 +43,5 @@ set_target_properties(_rbscan PROPERTIES INSTALL_RPATH "$ORIGIN")
 install(TARGETS _rbscan rbscan
     LIBRARY DESTINATION rbscan COMPONENT python
     RUNTIME DESTINATION rbscan COMPONENT python)
-install(FILES $<TARGET_FILE:${RBSCAN_HDF5_TARGET}> DESTINATION rbscan COMPONENT python)
+install(FILES "${RBSCAN_HDF5_RUNTIME_FILE}" DESTINATION rbscan
+    RENAME "${RBSCAN_HDF5_RUNTIME_NAME}" COMPONENT python)

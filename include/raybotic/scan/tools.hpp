@@ -145,12 +145,12 @@ struct GeometryOptions {
     /// Name of the raybotic.ct_acquisition node to fill (created if missing).
     std::string acquisition{"scan_0"};
     /// Node paths; empty = the only raybotic.xray_source / raybotic.xray_detector.
-    std::string source;
-    std::string detector;
+    std::string source{};
+    std::string detector{};
     std::string world_frame{"world"};
     /// Empty = the frame_id attribute of the source / detector node.
-    std::string source_frame;
-    std::string detector_frame;
+    std::string source_frame{};
+    std::string detector_frame{};
     /// Also write projection_matrix (world point in m -> column, row).
     bool projection_matrix{true};
     /// Replace an existing projections series.

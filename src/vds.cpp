@@ -1,6 +1,7 @@
 // Links segment files into the master file as HDF5 virtual datasets, so tools
 // that only know HDF5 (h5py, HDFView, MATLAB) see one dataset per field.
 
+#include <algorithm>
 #include <map>
 
 #include "internal.hpp"

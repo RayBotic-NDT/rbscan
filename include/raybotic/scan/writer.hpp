@@ -47,7 +47,7 @@ struct CompressionOptions {
 struct InlineOptions {
     CompressionOptions compression{};
     /// Data types for fields that allow several (default: the schema's first).
-    FieldTypes dtypes;
+    FieldTypes dtypes{};
     /// Target chunk size; samples per chunk = max(1, chunk_bytes / sample size).
     std::size_t chunk_bytes{256 * 1024};
 };
@@ -58,7 +58,7 @@ struct SegmentOptions {
     std::uint64_t segment_size{500};
     /// Data types for fields that allow several (default: the schema's first),
     /// e.g. {"image", DType::Float32} for corrected or simulated projections.
-    FieldTypes dtypes;
+    FieldTypes dtypes{};
     CompressionOptions compression{};
     /// Compression threads of this writer; 0 = half the hardware threads.
     unsigned threads{0};
@@ -74,11 +74,11 @@ struct SegmentOptions {
 };
 
 struct ScanInfo {
-    std::string description;
-    std::string operator_name;
-    std::string sample_id;
+    std::string description{};
+    std::string operator_name{};
+    std::string sample_id{};
     /// Anything else, stored as root attributes.
-    Attributes extra;
+    Attributes extra{};
 };
 
 /// Writes one series into the master file. Appends are buffered per chunk and
@@ -198,8 +198,9 @@ class RBSCAN_API ScanWriter {
     NodeWriter add_node(std::string_view name, std::string_view schema_id,
                         const Attributes& attributes = {});
     /// A node by path ("sensors/detector_0"): one added by this writer, or one
-    /// of an earlier session, whose attributes can then be changed (not its
-    /// series).
+    /// of an earlier session, whose attributes can then be changed and whose
+    /// stored inline series can be appended to (series()); it takes no new
+    /// series.
     [[nodiscard]] NodeWriter node(std::string_view path) const;
     /// Whether the master holds a node at `path` (from this or an earlier session).
     [[nodiscard]] bool has_node(std::string_view path) const;
