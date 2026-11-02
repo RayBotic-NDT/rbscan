@@ -6,6 +6,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/stl/filesystem.h>
 
+#include <algorithm>
 #include <raybotic/scan/rbscan.hpp>
 
 namespace py = pybind11;

@@ -401,6 +401,18 @@ Id open_file(const std::string& path, unsigned flags, bool swmr_read) {
     return Id(check_id(H5Fopen(path.c_str(), flags, fapl.get()), "opening " + path));
 }
 
+Id open_crashed_file(const std::string& path) {
+    Lock lock(mutex());
+    Id fapl(check_id(H5Pcreate(H5P_FILE_ACCESS), "H5Pcreate"));
+    check(H5Pset_libver_bounds(fapl.get(), H5F_LIBVER_V110, H5F_LIBVER_V110),
+          "H5Pset_libver_bounds");
+    // The property h5clear uses; it is registered for every file access list.
+    hbool_t clear = true;
+    check(H5Pset(fapl.get(), "clear_status_flags", &clear), "H5Pset clear_status_flags");
+    return Id(
+        check_id(H5Fopen(path.c_str(), H5F_ACC_RDWR, fapl.get()), "opening " + path));
+}
+
 bool exists(hid_t loc, const std::string& path) {
     Lock lock(mutex());
     std::string prefix;

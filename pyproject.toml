@@ -1,14 +1,39 @@
 [build-system]
-requires = ["scikit-build-core>=0.10", "pybind11>=3.0"]
+requires = ["scikit-build-core>=0.11", "pybind11>=3.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "rbscan"
-version = "0.1.0"
+# The version comes from project(... VERSION ...) in CMakeLists.txt.
+dynamic = ["version"]
 description = "RayBotic scan data format: HDF5 master file + segmented sensor streams"
 readme = "README.md"
-requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "LICENSES/*.txt"]
+authors = [{ name = "RayBotic" }]
+requires-python = ">=3.11"
 dependencies = ["numpy>=1.24"]
+keywords = ["hdf5", "ct", "x-ray", "robotics", "scan", "swmr"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/RayBotic-NDT/rbscan"
+Source = "https://github.com/RayBotic-NDT/rbscan"
+Issues = "https://github.com/RayBotic-NDT/rbscan/issues"
+Changelog = "https://github.com/RayBotic-NDT/rbscan/blob/main/CHANGELOG.md"
 
 [project.scripts]
 rbscan = "rbscan.__main__:main"
@@ -17,14 +42,19 @@ rbscan = "rbscan.__main__:main"
 test = ["pytest>=8", "h5py>=3.10", "hdf5plugin>=4.4"]
 
 [tool.scikit-build]
-minimum-version = "0.10"
+minimum-version = "0.11"
 cmake.version = ">=3.24"
 cmake.build-type = "Release"
 # Reused between pip builds, so HDF5 (in .deps) and the rest are built once.
 build-dir = "build/py-{wheel_tag}"
 wheel.packages = ["python/rbscan"]
 install.components = ["python"]
-sdist.exclude = [".deps", "build", ".venv"]
+sdist.exclude = [".deps", "build", ".venv", "dist", "tmp"]
+
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "CMakeLists.txt"
+regex = 'project\(rbscan\s+VERSION\s+(?P<value>[0-9]+\.[0-9]+\.[0-9]+)'
 
 [tool.scikit-build.cmake.define]
 RBSCAN_BUILD_PYTHON = "ON"

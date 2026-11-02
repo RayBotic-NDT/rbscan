@@ -150,13 +150,20 @@ class Array {
 
     /// Typed access; throws if T does not match the stored dtype.
     template <class T>
-    [[nodiscard]] std::span<const T> values() const {
+    [[nodiscard]] std::span<const T> values() const& {
         if (dtype_of<T>() != dtype_) {
             throw Error("Array holds " + std::string(to_string(dtype_)) + ", not " +
                         std::string(to_string(dtype_of<T>())));
         }
         return {reinterpret_cast<const T*>(bytes_.data()),
                 static_cast<std::size_t>(size())};
+    }
+    /// On a temporary (`reader.read(...).values<T>()`) a span would dangle
+    /// once the statement ends, so this returns a copy.
+    template <class T>
+    [[nodiscard]] std::vector<T> values() const&& {
+        const auto v = static_cast<const Array&>(*this).values<T>();
+        return {v.begin(), v.end()};
     }
 
     /// Moves the buffer out, e.g. to hand it to numpy without a copy.

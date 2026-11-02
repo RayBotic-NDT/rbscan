@@ -40,5 +40,8 @@ void register_filters();
 
 /// Adds the matching filters to a dataset creation property list.
 void set_filters(hid_t dcpl, const CompressionOptions& options);
+/// The options set_filters() was given for `dcpl`; throws for a filter
+/// pipeline rbscan does not write.
+[[nodiscard]] CompressionOptions filters_of(hid_t dcpl);
 
 }  // namespace raybotic::scan::detail

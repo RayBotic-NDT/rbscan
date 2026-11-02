@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 
 #if defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
 #include <emmintrin.h>
@@ -535,6 +536,33 @@ void set_filters(hid_t dcpl, const CompressionOptions& options) {
             return;
         }
     }
+}
+
+CompressionOptions filters_of(hid_t dcpl) {
+    CompressionOptions out;
+    out.method = Compression::None;
+    bool shuffle = false;
+    const int n = H5Pget_nfilters(dcpl);
+    for (int i = 0; i < n; ++i) {
+        unsigned flags = 0;
+        size_t count = 8;
+        unsigned values[8] = {};
+        unsigned config = 0;
+        const H5Z_filter_t id = H5Pget_filter2(dcpl, static_cast<unsigned>(i), &flags,
+                                               &count, values, 0, nullptr, &config);
+        if (id == bitshuffle_filter_id) {
+            out.method = Compression::BitshuffleLZ4;
+        } else if (id == H5Z_FILTER_SHUFFLE) {
+            shuffle = true;
+        } else if (id == H5Z_FILTER_DEFLATE) {
+            out.method = shuffle ? Compression::ShuffleDeflate : Compression::Deflate;
+            out.level = count > 0 ? static_cast<int>(values[0]) : 1;
+        } else {
+            throw Error("dataset uses filter " + std::to_string(id) +
+                        ", which rbscan does not write");
+        }
+    }
+    return out;
 }
 
 }  // namespace raybotic::scan::detail

@@ -9,6 +9,103 @@ namespace raybotic::scan {
 
 namespace fs = std::filesystem;
 
+namespace {
+
+/// Rows [start, start + count) of `dataset` into `out`, in memory layout.
+void read_rows(hid_t dataset, const detail::FieldLayout& field, std::uint64_t start,
+               std::uint64_t count, std::byte* out) {
+    const auto rank = field.sample_shape.size() + 1;
+    std::vector<hsize_t> offset(rank, 0);
+    std::vector<hsize_t> size(rank);
+    offset[0] = start;
+    size[0] = count;
+    for (std::size_t i = 0; i < field.sample_shape.size(); ++i) {
+        size[i + 1] = field.sample_shape[i];
+    }
+    h5::Id file_space(h5::check_id(H5Dget_space(dataset), "H5Dget_space"));
+    h5::check(H5Sselect_hyperslab(file_space.get(), H5S_SELECT_SET, offset.data(),
+                                  nullptr, size.data(), nullptr),
+              "H5Sselect_hyperslab");
+    h5::Id memory_space(
+        h5::check_id(H5Screate_simple(static_cast<int>(rank), size.data(), nullptr),
+                     "H5Screate_simple"));
+    h5::Id type = h5::memory_type(field.dtype);
+    h5::check(H5Dread(dataset, type.get(), memory_space.get(), file_space.get(),
+                      H5P_DEFAULT, out),
+              "reading " + field.name);
+}
+
+/// The writer of an inline series stored by an earlier session: the layout
+/// comes from its datasets, the last, partly filled chunk back into the
+/// buffers, so appending goes on where it ended.
+std::shared_ptr<SeriesWriter::Impl> resume_series(
+    const std::shared_ptr<ScanWriter::Impl>& scan, hid_t node_group,
+    const SeriesSpec& spec) {
+    h5::Lock lock(h5::mutex());
+    auto s = std::make_shared<SeriesWriter::Impl>();
+    s->scan = scan;
+    s->group = h5::open_group(node_group, spec.name);
+    s->layout.spec = spec;
+
+    std::vector<std::pair<std::string, bool>> names{{detail::time_field, false}};
+    for (const auto& f : spec.fields) {
+        if (h5::exists(s->group.get(), f.name)) names.emplace_back(f.name, f.optional);
+    }
+    for (const auto& [name, optional] : names) {
+        h5::Id d = h5::open_dataset(s->group.get(), name);
+        detail::FieldLayout f;
+        f.name = name;
+        f.optional = optional;
+        {
+            h5::Id type(h5::check_id(H5Dget_type(d.get()), "H5Dget_type"));
+            f.dtype = h5::dtype_of(type.get());
+        }
+        const Shape extent = h5::extent(d.get());
+        f.sample_shape.assign(extent.begin() + 1, extent.end());
+        std::uint64_t elements = 1;
+        for (auto e : f.sample_shape) elements *= e;
+        f.sample_bytes = static_cast<std::size_t>(elements) * dtype_size(f.dtype);
+        h5::Id dcpl(h5::check_id(H5Dget_create_plist(d.get()), "H5Dget_create_plist"));
+        std::vector<hsize_t> chunk(extent.size());
+        if (H5Pget_chunk(dcpl.get(), static_cast<int>(chunk.size()), chunk.data()) < 1) {
+            throw Error("series '" + spec.name + "': field '" + name +
+                        "' is not chunked");
+        }
+        f.chunk_samples = chunk[0];
+        if (name == detail::time_field) {
+            s->compression = detail::filters_of(dcpl.get());
+            s->total = extent[0];
+        } else if (extent[0] != s->total) {
+            throw Error("series '" + spec.name + "': field '" + name + "' has " +
+                        std::to_string(extent[0]) + " samples, time has " +
+                        std::to_string(s->total));
+        }
+        s->layout.fields.push_back(std::move(f));
+        s->datasets.push_back(std::move(d));
+    }
+
+    s->buffers.resize(s->layout.fields.size());
+    for (std::size_t i = 0; i < s->layout.fields.size(); ++i) {
+        const auto& f = s->layout.fields[i];
+        s->buffers[i].reset(new std::byte[f.chunk_bytes()]);
+        const auto fill = s->total % f.chunk_samples;
+        if (fill > 0) {
+            read_rows(s->datasets[i].get(), f, s->total - fill, fill,
+                      s->buffers[i].get());
+        }
+    }
+    if (s->total > 0) {
+        std::int64_t last = 0;
+        read_rows(s->datasets[0].get(), s->layout.fields[0], s->total - 1, 1,
+                  reinterpret_cast<std::byte*>(&last));
+        s->last_time = last;
+    }
+    s->flushed_total = s->total;
+    return s;
+}
+
+}  // namespace
+
 // ---------------------------------------------------------------------------
 // SeriesWriter (inline, in the master file)
 
@@ -100,10 +197,6 @@ void NodeWriter::set_attribute(std::string_view name, const Value& value) {
 SeriesWriter NodeWriter::series(std::string_view name, const Dims& dims,
                                 const InlineOptions& options) {
     auto scan = impl_->lock_scan();
-    if (impl_->stored_schema) {
-        throw Error("node '" + impl_->path +
-                    "' is from an earlier session: only its attributes can be changed");
-    }
     if (auto it = impl_->inline_series.find(name); it != impl_->inline_series.end()) {
         return SeriesWriter(it->second);
     }
@@ -111,6 +204,22 @@ SeriesWriter NodeWriter::series(std::string_view name, const Dims& dims,
     if (spec.storage != Storage::Inline) {
         throw Error("series '" + spec.name + "' of " + impl_->schema->id() +
                     " is segmented; use segmented_series()");
+    }
+    if (impl_->stored_schema) {
+        // A node of an earlier session: its stored series goes on.
+        bool stored = false;
+        {
+            h5::Lock lock(h5::mutex());
+            stored = h5::exists(impl_->group.get(), spec.name);
+        }
+        if (!stored) {
+            throw Error("node '" + impl_->path +
+                        "' is from an earlier session and has no series '" + spec.name +
+                        "' to append to");
+        }
+        auto s = resume_series(scan, impl_->group.get(), spec);
+        impl_->inline_series.emplace(spec.name, s);
+        return SeriesWriter(s);
     }
     auto s = std::make_shared<SeriesWriter::Impl>();
     s->scan = scan;
@@ -375,7 +484,7 @@ void ScanWriter::rebuild(const fs::path& scan_dir) {
     const fs::path master =
         fs::is_directory(scan_dir) ? scan_dir / master_file_name : scan_dir;
     h5::Lock lock(h5::mutex());
-    h5::Id file = h5::open_file(detail::utf8(master), H5F_ACC_RDWR);
+    h5::Id file = h5::open_crashed_file(detail::utf8(master));
     detail::link_all_segments(file.get(), master.parent_path());
     h5::write_attribute(file.get(), "complete", Value(true), DType::Bool);
     h5::write_string_attribute(file.get(), "finalized", detail::now_iso8601());

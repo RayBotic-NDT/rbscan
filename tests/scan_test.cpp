@@ -231,6 +231,110 @@ TEST(Scan, OpenExistingScanToAddAndReplaceNodes) {
     EXPECT_EQ(node.series("markers").size(), 1u);
 }
 
+TEST(Scan, TrajectoryPlanTables) {
+    TempDir dir;
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto plan = scan.add_node("plan", "raybotic.trajectory_plan",
+                                  {{"application", std::string("test")}});
+        EXPECT_EQ(plan.path(), "trajectories/plan");
+        const double centre[3] = {0.0, 0.0, 0.1};
+        const double axis[3] = {0.0, 0.0, 1.0};
+        const double start[3] = {1.0, 0.0, 0.0};
+        const std::uint8_t kind = 1;
+        const std::uint32_t projections = 2;
+        const std::uint64_t first = 0;
+        const std::uint64_t count = 2;
+        const bool ccw = true;
+        plan.series("trajectories")
+            .append(1, {{"kind", rs::scalar(kind)},
+                        {"centre", rs::view(centre, {3})},
+                        {"axis", rs::view(axis, {3})},
+                        {"start_direction", rs::view(start, {3})},
+                        {"tilt", rs::scalar(30.0)},
+                        {"fod", rs::scalar(0.3)},
+                        {"fdd", rs::scalar(0.6)},
+                        {"projections", rs::scalar(projections)},
+                        {"start_angle", rs::scalar(0.0)},
+                        {"range", rs::scalar(360.0)},
+                        {"counter_clockwise", rs::scalar(ccw)},
+                        {"first_pose", rs::scalar(first)},
+                        {"pose_count", rs::scalar(count)}});
+        auto poses = plan.series("poses");
+        const double position[3] = {0.0, 0.0, 0.1};
+        const double rotation[4] = {0.0, 0.0, 0.0, 1.0};
+        for (int i = 0; i < 2; ++i) {
+            const std::uint32_t trajectory = 0;
+            const bool skip = i == 1;
+            const bool manual = false;
+            poses.append(1, {{"trajectory", rs::scalar(trajectory)},
+                             {"angle", rs::scalar(180.0 * i)},
+                             {"skip", rs::scalar(skip)},
+                             {"manual", rs::scalar(manual)},
+                             {"roi_position", rs::view(position, {3})},
+                             {"roi_rotation", rs::view(rotation, {4})},
+                             {"source_position", rs::view(position, {3})},
+                             {"source_rotation", rs::view(rotation, {4})},
+                             {"detector_position", rs::view(position, {3})},
+                             {"detector_rotation", rs::view(rotation, {4})}});
+        }
+        EXPECT_THROW(scan.add_node("bad", "raybotic.trajectory_plan", {}), rs::Error);
+        scan.finalize();
+    }
+    const auto reader = rs::ScanReader::open(dir.path());
+    const auto plan = reader.node("trajectories/plan");
+    EXPECT_EQ(plan.series("trajectories").size(), 1u);
+    EXPECT_EQ(
+        plan.series("trajectories").read_sample("kind", 0).values<std::uint8_t>()[0], 1u);
+    EXPECT_EQ(plan.series("poses").size(), 2u);
+    EXPECT_DOUBLE_EQ(plan.series("poses").read_sample("angle", 1).values<double>()[0],
+                     180.0);
+    EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
+}
+
+TEST(Scan, LaterSessionsAppendToAnInlineSeries) {
+    TempDir dir;
+    // Small chunks, so sessions end inside a chunk and across chunk borders.
+    rs::InlineOptions small;
+    small.chunk_bytes = 64;
+    auto row = [](rs::SeriesWriter& s, int i) {
+        const double v[3] = {1.0 * i, 2.0 * i, 3.0 * i};
+        const double q[4] = {0.0, 0.0, 0.0, 1.0};
+        s.append(1000 * i,
+                 {{"translation", rs::view(v, {3})}, {"rotation", rs::view(q, {4})}});
+    };
+    int next = 0;
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto tf = scan.add_node("tool", "raybotic.transform",
+                                {{"parent", std::string("world")},
+                                 {"child", std::string("tool")},
+                                 {"static", false}});
+        auto pose = tf.series("pose", {}, small);
+        for (; next < 3; ++next) row(pose, next);
+        scan.finalize();
+    }
+    for (int session = 0; session < 3; ++session) {
+        auto scan = rs::ScanWriter::open(dir.path());
+        auto pose = scan.node("frames/tool").series("pose");
+        EXPECT_EQ(pose.size(), static_cast<std::uint64_t>(next));
+        EXPECT_THROW(row(pose, 0), rs::Error);  // time must not decrease
+        for (int k = 0; k < 2 + session; ++k, ++next) row(pose, next);
+        scan.finalize();
+    }
+    const auto reader = rs::ScanReader::open(dir.path());
+    const auto pose = reader.node("frames/tool").series("pose");
+    ASSERT_EQ(pose.size(), static_cast<std::uint64_t>(next));
+    const auto time = pose.time();
+    const rs::Array t = pose.read("translation");
+    const auto v = t.values<double>();
+    for (int i = 0; i < next; ++i) {
+        EXPECT_EQ(time[static_cast<size_t>(i)], 1000 * i);
+        EXPECT_DOUBLE_EQ(v[3 * static_cast<size_t>(i) + 2], 3.0 * i) << "row " << i;
+    }
+    EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
+}
+
 TEST(Scan, ReconstructionSettingsAndRunStatus) {
     TempDir dir;
     {
@@ -255,12 +359,12 @@ TEST(Scan, ReconstructionSettingsAndRunStatus) {
         scan.finalize();
     }
     {
-        // A later session updates the run's status without touching its series.
+        // A later session updates the run's status; its series can only go on.
         auto scan = rs::ScanWriter::open(dir.path());
         auto run = scan.node("reconstructions/run_1");
         run.set_attribute("status", std::string("ok"));
         run.set_attribute("volume", std::string("volumes/reco"));
-        EXPECT_THROW((void)run.series("rois"), rs::Error);
+        EXPECT_EQ(run.series("rois").size(), 1u);
         EXPECT_THROW((void)scan.node("reconstructions/missing"), rs::Error);
         scan.finalize();
     }

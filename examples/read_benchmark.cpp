@@ -32,7 +32,8 @@ int main(int argc, char** argv) {
         thread_counts.clear();
         std::stringstream in(argv[5]);
         std::string item;
-        while (std::getline(in, item, ',')) thread_counts.push_back(std::stoul(item));
+        while (std::getline(in, item, ','))
+            thread_counts.push_back(static_cast<unsigned>(std::stoul(item)));
     }
 
     try {

@@ -23,15 +23,17 @@ std::vector<std::uint16_t> projection(std::uint64_t size, double angle) {
     // A blurred disc moving with the angle, plus a little texture: compresses
     // roughly like a real flat-panel image.
     std::vector<std::uint16_t> img(size * size);
-    const double cx = 0.5 * size + 0.2 * size * std::cos(angle);
-    const double r2 = 0.09 * size * size;
+    const auto s = static_cast<double>(size);
+    const double cx = 0.5 * s + 0.2 * s * std::cos(angle);
+    const double r2 = 0.09 * s * s;
     for (std::uint64_t y = 0; y < size; ++y) {
         for (std::uint64_t x = 0; x < size; ++x) {
-            const double dx = x - cx;
-            const double dy = y - 0.5 * size;
+            const double dx = static_cast<double>(x) - cx;
+            const double dy = static_cast<double>(y) - 0.5 * s;
             const double absorb = std::exp(-(dx * dx + dy * dy) / r2);
-            img[y * size + x] = static_cast<std::uint16_t>(
-                52000.0 * (1.0 - 0.7 * absorb) + ((x * 31 + y * 17) & 63));
+            img[y * size + x] =
+                static_cast<std::uint16_t>(52000.0 * (1.0 - 0.7 * absorb) +
+                                           static_cast<double>((x * 31 + y * 17) & 63));
         }
     }
     return img;
@@ -190,7 +192,7 @@ int main(int argc, char** argv) {
                 const std::int64_t tk = t + k * 50'000'000;
                 std::vector<double> q(6);
                 for (std::size_t j = 0; j < 6; ++j)
-                    q[j] = 0.3 * std::sin(a + 0.1 * j + 0.01 * k);
+                    q[j] = 0.3 * std::sin(a + 0.1 * static_cast<double>(j) + 0.01 * k);
                 source_joints.append(tk, {{"position", rs::view(q)}});
                 detector_joints.append(tk, {{"position", rs::view(q)}});
                 source_tf.append(tk, {{"translation", rs::view(src, {3})},

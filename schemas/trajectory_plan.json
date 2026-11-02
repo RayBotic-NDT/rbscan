@@ -1,0 +1,48 @@
+{
+  "schema": "raybotic.trajectory_plan",
+  "version": 1,
+  "category": "trajectories",
+  "description": "Planned scan trajectories, driven one after another in the order of the trajectories table. Each trajectory is an orbit (circle or laminography) about a centre; its poses are the planned scan poses: the ROI frame (z towards the source, y up) with the source and detector frames, all in the scan's world frame. Poses generated from the orbit and poses moved by hand are both stored in full, so a reader needs no orbit generator.",
+  "attributes": {
+    "application": { "dtype": "string", "required": true, "description": "What wrote the plan, e.g. RayBotic Viewer 0.1.1." },
+    "modified": { "dtype": "string", "description": "ISO 8601 UTC." },
+    "acquisition": { "dtype": "string", "description": "Node path of a ct_acquisition recorded from this plan." }
+  },
+  "series": {
+    "trajectories": {
+      "storage": "inline",
+      "description": "One row per trajectory, in drive order; time = when the plan was written.",
+      "fields": {
+        "kind": { "dtype": "uint8", "description": "0 circle, 1 laminography." },
+        "centre": { "dtype": "float64", "shape": [3], "units": "m", "description": "Point the orbit turns about." },
+        "axis": { "dtype": "float64", "shape": [3], "description": "Rotation axis (laminography: plate normal), unit vector." },
+        "start_direction": { "dtype": "float64", "shape": [3], "description": "Direction from the centre towards the source at angle 0 (projected normal to axis)." },
+        "tilt": { "dtype": "float64", "units": "deg", "description": "Central beam against the plane normal to axis; 0 for a circle." },
+        "fod": { "dtype": "float64", "units": "m", "description": "Focus (source) to centre." },
+        "fdd": { "dtype": "float64", "units": "m", "description": "Focus to detector." },
+        "projections": { "dtype": "uint32", "description": "Poses the orbit was generated with." },
+        "start_angle": { "dtype": "float64", "units": "deg" },
+        "range": { "dtype": "float64", "units": "deg", "description": "Angle covered; 360 closes the orbit." },
+        "counter_clockwise": { "dtype": "bool", "description": "Direction about axis." },
+        "first_pose": { "dtype": "uint64", "description": "Row of its first pose in poses." },
+        "pose_count": { "dtype": "uint64", "description": "Rows in poses that belong to it." }
+      }
+    },
+    "poses": {
+      "storage": "inline",
+      "description": "One row per planned pose, trajectory after trajectory; time = when the plan was written.",
+      "fields": {
+        "trajectory": { "dtype": "uint32", "description": "Row in trajectories." },
+        "angle": { "dtype": "float64", "units": "deg", "description": "Orbit angle of the pose." },
+        "skip": { "dtype": "bool", "description": "Switched off: not driven." },
+        "manual": { "dtype": "bool", "description": "Moved by hand: not on the orbit at its angle." },
+        "roi_position": { "dtype": "float64", "shape": [3], "units": "m" },
+        "roi_rotation": { "dtype": "float64", "shape": [4], "description": "Unit quaternion x, y, z, w." },
+        "source_position": { "dtype": "float64", "shape": [3], "units": "m" },
+        "source_rotation": { "dtype": "float64", "shape": [4], "description": "Unit quaternion x, y, z, w." },
+        "detector_position": { "dtype": "float64", "shape": [3], "units": "m" },
+        "detector_rotation": { "dtype": "float64", "shape": [4], "description": "Unit quaternion x, y, z, w." }
+      }
+    }
+  }
+}

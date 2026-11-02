@@ -37,8 +37,14 @@ target_link_libraries(rbscan
 set_target_properties(rbscan PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR})
+    # The HDF5 library lies next to it (SDK lib/, wheel package dir).
+    INSTALL_RPATH "$ORIGIN")
+# A wheel holds plain files: one librbscan.so instead of versioned file + links.
+if(NOT SKBUILD)
+    set_target_properties(rbscan PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR})
+endif()
 
 # hdf5.dll next to rbscan.dll, so tests, examples and the Python module find it.
 if(WIN32)
@@ -58,7 +64,16 @@ install(TARGETS rbscan EXPORT rbscanTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT sdk)
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT sdk)
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/schemas/" DESTINATION ${CMAKE_INSTALL_DATADIR}/rbscan/schemas COMPONENT sdk)
-install(FILES $<TARGET_FILE:${RBSCAN_HDF5_TARGET}> DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT sdk)
+if(WIN32)
+    set(_hdf5_destination ${CMAKE_INSTALL_BINDIR})
+else()
+    set(_hdf5_destination ${CMAKE_INSTALL_LIBDIR})
+endif()
+install(FILES "${RBSCAN_HDF5_RUNTIME_FILE}" DESTINATION ${_hdf5_destination}
+    RENAME "${RBSCAN_HDF5_RUNTIME_NAME}" COMPONENT sdk)
+install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" "${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/rbscan COMPONENT sdk)
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/LICENSES/" DESTINATION ${CMAKE_INSTALL_DATADIR}/rbscan/licenses COMPONENT sdk)
 install(EXPORT rbscanTargets NAMESPACE rbscan:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rbscan COMPONENT sdk)
 
 include(CMakePackageConfigHelpers)

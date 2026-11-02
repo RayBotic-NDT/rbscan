@@ -63,6 +63,10 @@ DType dtype_of(hid_t type);
 
 Id create_file(const std::string& path, bool overwrite, bool swmr_capable);
 Id open_file(const std::string& path, unsigned flags, bool swmr_read = false);
+/// Opens for writing and clears the superblock status flags a writer that
+/// crashed left behind (what h5clear -s does). File locking still keeps out a
+/// writer that is alive.
+Id open_crashed_file(const std::string& path);
 
 bool exists(hid_t loc, const std::string& path);
 /// Creates all missing groups along `path`.
