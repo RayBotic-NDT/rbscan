@@ -452,7 +452,17 @@ release:
           with urllib.request.urlopen(req) as r:
               print(json.load(r)["token"])
       except urllib.error.HTTPError as e:
-          raise SystemExit(f"minting the upload token failed: {e.code} {e.read().decode()}")
+          import base64, sys
+          print(f"minting the upload token failed: {e.code} {e.read().decode()}", file=sys.stderr)
+          # The claims PyPI matches against the trusted publisher (not secret;
+          # the token itself is never printed).
+          payload = os.environ["PYPI_ID_TOKEN"].split(".")[1]
+          claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+          print("This job's OIDC claims; the trusted publisher on PyPI must match them:", file=sys.stderr)
+          for key in ("aud", "namespace_path", "project_path", "ci_config_ref_uri",
+                      "environment", "ref_path", "ref_protected"):
+              print(f"  {key}: {claims.get(key)}", file=sys.stderr)
+          raise SystemExit(1)
       PY
       ) || exit 1
     - python -m twine upload --non-interactive --repository-url "$PYPI_UPLOAD_URL" $TWINE_EXTRA -u __token__ -p "$api_token" dist/wheels/*.whl dist/rbscan-[0-9]*.tar.gz
