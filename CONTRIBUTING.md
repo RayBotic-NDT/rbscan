@@ -37,5 +37,7 @@ By contributing you agree that your contribution is licensed under the
 2. Turn the `Unreleased` section of `CHANGELOG.md` into `## [x.y.z] - <date>`.
 3. Merge to `main`, then tag `vx.y.z` and push the tag. The pipeline checks
    that the tag matches the version, builds and tests on both platforms,
-   publishes the SDKs and wheels to the GitLab Package Registry and creates the
-   GitLab release.
+   publishes the SDKs and wheels to the GitLab Package Registry, creates the
+   GitLab release and uploads wheels and sdist to PyPI (Trusted Publishing).
+   PyPI takes every version only once: for a trial, run the manual
+   `publish:testpypi` job first.

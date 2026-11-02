@@ -3,11 +3,15 @@
 #
 #   ci/linux.sh build     configure and build (Release) into build-linux/
 #   ci/linux.sh test      ctest incl. pytest, JUnit report in build-linux/
-#   ci/linux.sh package   SDK tarball, SDK consumer test and wheels in dist/
+#   ci/linux.sh package   SDK tarball, SDK consumer test, wheels and sdist in dist/
 #   ci/linux.sh publish   upload dist/ to the GitLab Generic Package Registry
 #
 # Needs a C++20 compiler, git and curl. uv (pinned), Python, CMake and Ninja are
 # provisioned into .deps/ and .venv/.
+#
+# Inside a manylinux image (quay.io/pypa/manylinux_2_28_x86_64, which sets
+# AUDITWHEEL_PLAT) the wheels are repaired with auditwheel and get a manylinux
+# tag, as PyPI requires. Elsewhere they stay linux_x86_64 (not for PyPI).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -19,6 +23,11 @@ export UV_PYTHON_INSTALL_DIR="$PWD/.deps/uv-python"
 export UV_CACHE_DIR="$PWD/.deps/uv-cache"
 # A distribution's Python often lacks the headers; uv's own builds have them.
 export UV_PYTHON_PREFERENCE=only-managed
+
+# HDF5 and the build trees depend on the compiler and glibc of the image, so
+# each platform gets its own.
+PLATFORM="${AUDITWHEEL_PLAT:-host}"
+export RBSCAN_DEPS_DIR="$PWD/.deps/$PLATFORM"
 
 setup_python() {
     if [ "$(.deps/uv/uv --version 2>/dev/null | cut -d' ' -f2)" != "$UV_VERSION" ]; then
@@ -33,7 +42,26 @@ setup_python() {
     export PATH="$PWD/.venv/bin:$PATH"
 }
 
+# What a build tree depends on besides the sources. CI workspaces outlive jobs
+# and images, so a tree is only reused when this matches.
+toolchain_id() {
+    local cxx
+    cxx=$(command -v "${CXX:-c++}" || echo none)
+    echo "$PLATFORM $cxx $("$cxx" -dumpfullversion 2>/dev/null) $(ldd --version 2>&1 | head -n 1)"
+}
+
 configure() {
+    local id cached_cxx
+    id=$(toolchain_id)
+    cached_cxx=$(sed -n 's/^CMAKE_CXX_COMPILER:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null)
+    if [ -f "$BUILD_DIR/CMakeCache.txt" ] &&
+        { [ "$(cat "$BUILD_DIR/.toolchain" 2>/dev/null)" != "$id" ] ||
+            [ ! -x "$cached_cxx" ]; }; then
+        echo "$BUILD_DIR was built with another toolchain; starting over"
+        rm -rf "$BUILD_DIR"
+    fi
+    mkdir -p "$BUILD_DIR"
+    echo "$id" >"$BUILD_DIR/.toolchain"
     cmake -S . -B "$BUILD_DIR" -G "Ninja Multi-Config" \
         -DPython_EXECUTABLE="$PWD/.venv/bin/python" \
         -DRBSCAN_BUILD_TESTS=ON -DRBSCAN_BUILD_PYTHON=ON \
@@ -41,21 +69,29 @@ configure() {
         -DRBSCAN_WARNINGS_AS_ERRORS=ON
 }
 
-build() {
-    # Release tags always start from a clean build tree.
-    if [ -n "${CI_COMMIT_TAG:-}" ]; then rm -rf "$BUILD_DIR"; fi
+# Configure (which also drops a build tree of another platform) and build
+# incrementally. test and package call it too: a CI job may find a build tree
+# from an older pipeline or another image in its workspace, and binaries built
+# against a newer glibc do not even start in the manylinux image.
+ensure_built() {
     configure
     cmake --build "$BUILD_DIR" --config Release --parallel
 }
 
+build() {
+    # Release tags always start from a clean build tree.
+    if [ -n "${CI_COMMIT_TAG:-}" ]; then rm -rf "$BUILD_DIR"; fi
+    ensure_built
+}
+
 run_tests() {
-    [ -f "$BUILD_DIR/build.ninja" ] || build
+    ensure_built
     ctest --test-dir "$BUILD_DIR" -C Release --output-on-failure \
         --output-junit ctest_report.xml
 }
 
 package() {
-    [ -f "$BUILD_DIR/build.ninja" ] || build
+    ensure_built
     rm -rf dist
     mkdir -p dist/wheels
 
@@ -70,11 +106,25 @@ package() {
     "$BUILD_DIR/consumer/rbscan_consumer" "$BUILD_DIR"
     rm -rf dist/sdk
 
+    # Wheel build trees (build/py-<tag>) have the same name on every platform.
+    rm -rf build/py-*
     for py in $WHEEL_PYTHONS; do
         echo "Building wheel for Python $py"
-        uv build --wheel --python "$py" -o dist/wheels
+        uv build --wheel --python "$py" -o dist/raw-wheels
     done
-    rm -f dist/wheels/.gitignore
+    if [ -n "${AUDITWHEEL_PLAT:-}" ]; then
+        uv pip install --python .venv/bin/python auditwheel
+        for w in dist/raw-wheels/*.whl; do
+            auditwheel repair --plat "$AUDITWHEEL_PLAT" -w dist/wheels "$w"
+        done
+    else
+        echo "Not in a manylinux image: wheels keep the linux_x86_64 tag (not for PyPI)"
+        mv dist/raw-wheels/*.whl dist/wheels/
+    fi
+    rm -rf dist/raw-wheels
+
+    uv build --sdist -o dist
+    rm -f dist/.gitignore
 
     wheel=$(ls dist/wheels/*-cp312-*.whl | head -n 1)
     echo "Smoke-testing $wheel"
