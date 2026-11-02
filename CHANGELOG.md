@@ -9,7 +9,9 @@ in every scan, see [docs/format.md](docs/format.md)) are independent: a
 library release can read every format version with the same major number
 (`1.x`). Schemas carry their own version (`raybotic.xray_detector/1`).
 
-## [0.2.0] - Unreleased
+## [Unreleased]
+
+## [0.2.0] - 2026-11-02
 
 First release published on GitHub. Writes and reads format version 1.0.
 
