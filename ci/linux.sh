@@ -53,7 +53,8 @@ toolchain_id() {
 configure() {
     local id cached_cxx
     id=$(toolchain_id)
-    cached_cxx=$(sed -n 's/^CMAKE_CXX_COMPILER:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null)
+    # No cache yet (fresh workspace, tag build): sed fails, which set -e must not see.
+    cached_cxx=$(sed -n 's/^CMAKE_CXX_COMPILER:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)
     if [ -f "$BUILD_DIR/CMakeCache.txt" ] &&
         { [ "$(cat "$BUILD_DIR/.toolchain" 2>/dev/null)" != "$id" ] ||
             [ ! -x "$cached_cxx" ]; }; then

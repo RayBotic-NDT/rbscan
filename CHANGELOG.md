@@ -11,9 +11,14 @@ library release can read every format version with the same major number
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-11-02
+## [0.2.1] - 2026-11-02
 
-First release published on GitHub. Writes and reads format version 1.0.
+First release published on PyPI and GitHub. Writes and reads format version 1.0.
+
+### Fixed
+
+- The Linux release build no longer stops without a message on a fresh CI
+  workspace (the reason 0.2.0 was never published).
 
 ### Added
 
@@ -39,3 +44,8 @@ First release published on GitHub. Writes and reads format version 1.0.
 - `Array::values<T>()` returns a `std::span` on a named array and an owning
   `std::vector<T>` on a temporary (`reader.read(...).values<T>()`), so the
   result never dangles.
+
+## [0.2.0] - 2026-11-02
+
+Tagged but not published: its Linux release build failed. Everything is in
+0.2.1.
