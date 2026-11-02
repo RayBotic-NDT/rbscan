@@ -20,7 +20,13 @@ set(RBSCAN_HDF5_VERSION 1.14.6)
 set(RBSCAN_ZLIB_VERSION 1.3.1)
 
 option(RBSCAN_BUILD_HDF5 "Build HDF5 from source into RBSCAN_DEPS_DIR" ON)
-set(RBSCAN_DEPS_DIR "${PROJECT_SOURCE_DIR}/.deps" CACHE PATH
+# The environment variable lets wheel builds (pip, uv) pick the directory too.
+if(DEFINED ENV{RBSCAN_DEPS_DIR})
+    set(_rbscan_deps_default "$ENV{RBSCAN_DEPS_DIR}")
+else()
+    set(_rbscan_deps_default "${PROJECT_SOURCE_DIR}/.deps")
+endif()
+set(RBSCAN_DEPS_DIR "${_rbscan_deps_default}" CACHE PATH
     "Where the HDF5 superbuild puts its sources, build trees and install")
 
 function(_rbscan_run_step)

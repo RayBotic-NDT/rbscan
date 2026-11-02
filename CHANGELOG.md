@@ -31,8 +31,9 @@ First release published on GitHub. Writes and reads format version 1.0.
 - `rebuild` recovers a scan whose recording process crashed: it clears the
   HDF5 status flags the crashed writer left in the master file and relinks
   every segment on disk.
-- C++ SDK (Windows, Linux) with CMake package config, Python wheels for
-  CPython 3.11–3.14.
+- C++ SDK (Windows, Linux) with CMake package config.
+- On PyPI (`pip install rbscan`): wheels for CPython 3.11–3.14 on Windows x64
+  and Linux x86_64 (`manylinux_2_28`), plus the source distribution.
 - `Array::values<T>()` returns a `std::span` on a named array and an owning
   `std::vector<T>` on a temporary (`reader.read(...).values<T>()`), so the
   result never dangles.

@@ -11,6 +11,11 @@
 #                 (packages/generic/rbscan/<version>/) on the default branch
 #                 (<version>-dev.<sha>) and on release tags (<version>).
 #   5. release  - GitLab release for a tag, notes from CHANGELOG.md
+#   6. publish  - wheels + sdist to PyPI on a tag (Trusted Publishing, no
+#                 stored token); TestPyPI by hand (manual job)
+#
+# Linux jobs run in the manylinux_2_28 image, so the wheels can be repaired
+# into manylinux wheels that PyPI accepts.
 #
 # Windows jobs run on the runner tagged $RBSCAN_WINDOWS_RUNNER_TAG, Linux jobs
 # on the one tagged $RBSCAN_LINUX_RUNNER_TAG. Leave RBSCAN_LINUX_RUNNER_TAG
@@ -26,6 +31,7 @@ stages:
   - test
   - package
   - release
+  - publish
 
 workflow:
   rules:
@@ -53,6 +59,7 @@ variables:
     - $RBSCAN_WINDOWS_RUNNER_TAG
 
 .linux:
+  image: quay.io/pypa/manylinux_2_28_x86_64
   tags:
     - $RBSCAN_LINUX_RUNNER_TAG
   rules:
@@ -360,6 +367,7 @@ package:linux:
     expire_in: 30 days
     paths:
       - "dist/rbscan-sdk-linux-x86_64.tar.gz"
+      - "dist/rbscan-[0-9]*.tar.gz"
       - "dist/wheels/*.whl"
 
 # ------------------------------------------------------------------
@@ -407,3 +415,79 @@ release:
       curl.exe --fail --silent --show-error --header "JOB-TOKEN: $env:CI_JOB_TOKEN" --header "Content-Type: application/json" --data "@$bodyFile" "$env:CI_API_V4_URL/projects/$env:CI_PROJECT_ID/releases"
       if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       Write-Host "`nCreated release rbscan $version with $($links.Count) package links"
+
+# ------------------------------------------------------------------
+# Stage: Publish to PyPI / TestPyPI (Trusted Publishing)
+# ------------------------------------------------------------------
+# PyPI trusts this project's GitLab OIDC token (pending/trusted publisher:
+# namespace raybotic/machine, project rbscan, workflow .gitlab-ci.yml,
+# environment pypi resp. testpypi). The job swaps the token for a short-lived
+# upload token; nothing is stored in CI/CD variables. PyPI accepts every
+# version only once.
+.pypi_upload:
+  extends: .linux
+  image: python:3.12-slim
+  variables:
+    # Before the artifacts arrive: drop old dist/ files, keep the build caches.
+    GIT_CLEAN_FLAGS: "-ffdx -e .deps -e .venv -e build-linux"
+  needs:
+    - job: package:windows
+      artifacts: true
+    - job: package:linux
+      artifacts: true
+  script:
+    - python -m pip install --quiet --upgrade twine
+    - ls -l dist dist/wheels
+    - python -m twine check --strict dist/wheels/*.whl dist/rbscan-[0-9]*.tar.gz
+    - |
+      api_token=$(python - <<'PY'
+      import json, os, urllib.request
+      req = urllib.request.Request(
+          os.environ["PYPI_MINT_URL"],
+          data=json.dumps({"token": os.environ["PYPI_ID_TOKEN"]}).encode(),
+          headers={"Content-Type": "application/json"},
+          method="POST",
+      )
+      try:
+          with urllib.request.urlopen(req) as r:
+              print(json.load(r)["token"])
+      except urllib.error.HTTPError as e:
+          raise SystemExit(f"minting the upload token failed: {e.code} {e.read().decode()}")
+      PY
+      ) || exit 1
+    - python -m twine upload --non-interactive --repository-url "$PYPI_UPLOAD_URL" $TWINE_EXTRA -u __token__ -p "$api_token" dist/wheels/*.whl dist/rbscan-[0-9]*.tar.gz
+
+publish:testpypi:
+  extends: .pypi_upload
+  stage: publish
+  environment: testpypi
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: testpypi
+  variables:
+    PYPI_MINT_URL: "https://test.pypi.org/_/oidc/mint-token"
+    PYPI_UPLOAD_URL: "https://test.pypi.org/legacy/"
+    # A trial run may repeat a version that is already there.
+    TWINE_EXTRA: "--skip-existing"
+  rules:
+    - if: $RBSCAN_LINUX_RUNNER_TAG == null || $RBSCAN_LINUX_RUNNER_TAG == ""
+      when: never
+    - if: $CI_COMMIT_TAG || $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+
+publish:pypi:
+  extends: .pypi_upload
+  stage: publish
+  environment: pypi
+  id_tokens:
+    PYPI_ID_TOKEN:
+      aud: pypi
+  variables:
+    PYPI_MINT_URL: "https://pypi.org/_/oidc/mint-token"
+    PYPI_UPLOAD_URL: "https://upload.pypi.org/legacy/"
+    TWINE_EXTRA: ""
+  rules:
+    - if: $RBSCAN_LINUX_RUNNER_TAG == null || $RBSCAN_LINUX_RUNNER_TAG == ""
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/

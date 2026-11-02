@@ -27,8 +27,11 @@ target_include_directories(rbscan
         ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(rbscan
     PRIVATE RBSCAN_BUILDING RBSCAN_VERSION="${PROJECT_VERSION}")
+# std::thread needs libpthread explicitly on glibc < 2.34 (e.g. manylinux_2_28).
+find_package(Threads REQUIRED)
 target_link_libraries(rbscan
     PRIVATE
+        Threads::Threads
         ${RBSCAN_HDF5_TARGET}
         libdeflate_static
         rbscan_lz4

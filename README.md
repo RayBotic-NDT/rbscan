@@ -48,37 +48,29 @@ part_42/
 | **Multi-process recording** | A separate process can open a `SegmentedSeriesWriter` directly in the scan directory without touching the master file; `finalize()` (or `rebuild()`) links all discovered segments into `scan.rbscan.h5`. |
 | **Post-hoc editing** | `ScanWriter::open(dir)` opens an existing scan to add, replace, or remove nodes (e.g., resolved CT geometry, reconstructed 3D volumes, or viewer annotations). |
 
-For the full on-disk specification, see [docs/format.md](docs/format.md).
+For the full on-disk specification, see [docs/format.md](https://github.com/RayBotic-NDT/rbscan/blob/main/docs/format.md).
 
 ---
 
 ## Installation
 
-Prebuilt packages for **Windows x64** and **Linux x86_64** are attached to every release
-(GitLab release page and Package Registry, `packages/generic/rbscan/<version>/`):
-
-| File | Contents |
-| :--- | :--- |
-| `rbscan-<version>-cp3XX-cp3XX-win_amd64.whl`, `...-linux_x86_64.whl` | Python package for CPython 3.11–3.14, incl. the `rbscan` CLI |
-| `rbscan-sdk-win64.zip`, `rbscan-sdk-linux-x86_64.tar.gz` | C++ SDK: shared library, `rbscan` CLI, headers, CMake config, schemas, licenses |
-
-The Linux wheels are built on the CI's Linux runner (plain `linux_x86_64` tag, not
-`manylinux`); they need a glibc at least as new as the runner's. Elsewhere, build from
-source (`pip install .` in a checkout).
-
 ### Python
 
-Install from a downloaded wheel:
-
 ```bash
-pip install rbscan-0.2.0-cp312-cp312-win_amd64.whl
+pip install rbscan
 ```
+
+Wheels are published on [PyPI](https://pypi.org/project/rbscan/) for CPython 3.11–3.14 on
+**Windows x64** and **Linux x86_64** (`manylinux_2_28`, i.e. glibc ≥ 2.28: RHEL/Rocky 8+,
+Debian 11+, Ubuntu 20.04+). They include the `rbscan` command-line tool. On other platforms
+pip builds from the source distribution, which needs CMake ≥ 3.24, a C++20 compiler and
+internet access (HDF5 and the other dependencies are downloaded and built once).
 
 > **Note on HDF5 coexistence:** The bundled HDF5 runtime is named `rbscan_hdf5.dll` (`librbscan_hdf5.so` on Linux) so it never clashes with `h5py`, PyTables, or MATLAB in the same process.
 
 ### C++ SDK (CMake)
 
-Extract `rbscan-sdk-win64.zip` / `rbscan-sdk-linux-x86_64.tar.gz` (or install from source) and point CMake's `CMAKE_PREFIX_PATH` / `rbscan_DIR` at it:
+Build and install it from source (see [Building from Source](#building-from-source); `cmake --install build --component sdk --prefix <dir>`), or use the `rbscan-sdk-win64.zip` / `rbscan-sdk-linux-x86_64.tar.gz` archives of a RayBotic release, and point CMake's `CMAKE_PREFIX_PATH` / `rbscan_DIR` at it:
 
 ```cmake
 find_package(rbscan CONFIG REQUIRED)
@@ -158,9 +150,9 @@ rbscan.write_volume("D:/scans/part_42", "reco_0", volume, voxel_to_world, compre
 vol_array, tf_matrix, attrs = rbscan.read_volume("D:/scans/part_42", "volumes/reco_0")
 ```
 
-More runnable examples live in [`python/examples/`](python/examples/):
-- [`record_ct_scan.py`](python/examples/record_ct_scan.py) — records a synthetic CT scan across two processes, resolves geometry, and reads it back.
-- [`inspect_scan.py`](python/examples/inspect_scan.py) — prints a summary of all nodes and series in a scan.
+More runnable examples live in [`python/examples/`](https://github.com/RayBotic-NDT/rbscan/tree/main/python/examples/):
+- [`record_ct_scan.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/record_ct_scan.py) — records a synthetic CT scan across two processes, resolves geometry, and reads it back.
+- [`inspect_scan.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/inspect_scan.py) — prints a summary of all nodes and series in a scan.
 
 ---
 
@@ -224,7 +216,7 @@ rbscan schemas [raybotic.xray_detector]      # List built-in schemas or print a 
 | :--- | :--- |
 | **`info`** | Prints storage mode, sample count, duration, sample rate, segment count, and raw vs. compressed size per series. Supports `--json` and `--attributes`. |
 | **`validate`** | Verifies all nodes against their embedded schemas (required attributes, dtypes, shapes, named dimensions), monotonic timestamps, VDS segment links, cross-node references, unit quaternions, and orthogonal detector axes without reading image payloads. |
-| **`resolve-geometry`** | Interpolates the recorded TF tree (`frames/*`, linear translation + quaternion slerp) to each projection timestamp and writes `acquisitions/<name>/projections` (source/detector positions, detector axes, $3 \times 4$ projection matrix, kV, µA, integration time, and validity flags). |
+| **`resolve-geometry`** | Interpolates the recorded TF tree (`frames/*`, linear translation + quaternion slerp) to each projection timestamp and writes `acquisitions/<name>/projections` (source/detector positions, detector axes, 3×4 projection matrix, kV, µA, integration time, and validity flags). |
 | **`rebuild`** | Recovers a scan after a crashed or killed recording: clears the HDF5 status flags left in `scan.rbscan.h5`, scans the directory for `seg_*.h5` files, reconstructs missing node entries, and rebuilds the virtual datasets. Run it only when no process is writing the scan any more. |
 
 All CLI operations are also exposed in C++ (`rs::summarize`, `rs::validate`, `rs::resolve_geometry`, `rs::FrameGraph`, `rs::projection_matrix`) and Python (`rbscan.info`, `rbscan.validate`, `rbscan.resolve_geometry`, `rbscan.FrameGraph`).
@@ -243,9 +235,9 @@ All CLI operations are also exposed in C++ (`rs::summarize`, `rs::validate`, `rs
 | `raybotic.profile_scanner` | `sensors` | `profile` (segmented 2D laser line profiles). |
 | `raybotic.force_torque` | `sensors` | `wrench` (6-axis force/torque measurements). |
 | `raybotic.robot_arm` | `robots` | `joint_states`, `tracking` (positions, velocities, efforts). |
-| `raybotic.transform` | `frames` | `pose` — dynamic or static 3D transform edge (`parent_frame` $\rightarrow$ `child_frame`). |
+| `raybotic.transform` | `frames` | `pose` — dynamic or static 3D transform edge (`parent_frame` → `child_frame`). |
 | `raybotic.ct_acquisition` | `acquisitions` | `scan_poses`, `projections` — resolved per-projection CT geometry. |
-| `raybotic.volume` | `volumes` | `slices` (segmented 3D volume; `float32`, `uint16`, or `uint8`) + `voxel_to_world` $4 \times 4$ matrix. |
+| `raybotic.volume` | `volumes` | `slices` (segmented 3D volume; `float32`, `uint16`, or `uint8`) + `voxel_to_world` 4×4 matrix. |
 | `raybotic.annotations` | `annotations` | `markers`, `observations` + full viewer annotation document. |
 | `raybotic.reconstruction` | `reconstructions` | `rois` + the complete reconstruction settings document; `current` is being edited, `run_<time>` records each run. |
 | `raybotic.trajectory_plan` | `trajectories` | `trajectories`, `poses` — planned scan orbits (circle, laminography) in drive order. |
@@ -253,7 +245,7 @@ All CLI operations are also exposed in C++ (`rs::summarize`, `rs::validate`, `rs
 
 ### Adding a Custom Schema
 
-A new sensor schema is a plain JSON file extending `raybotic.sensor/1` (see [`schemas/`](schemas/) for examples). You can:
+A new sensor schema is a plain JSON file extending `raybotic.sensor/1` (see [`schemas/`](https://github.com/RayBotic-NDT/rbscan/tree/main/schemas/) for examples). You can:
 1. Register it at runtime via `rs::register_schema(json)` / `rbscan.register_schema(json)`,
 2. Place it in a folder listed in the `RBSCAN_SCHEMA_PATH` environment variable, or
 3. Add it to `schemas/` to compile it into the library.
@@ -266,9 +258,9 @@ Because `rbscan` embeds the resolved schema JSON into every node group on disk, 
 
 ### Prerequisites
 
-- **CMake** $\ge 3.24$
+- **CMake** ≥ 3.24
 - **C++20 compiler**: Visual Studio 2022 (Windows) or GCC / Clang (Linux)
-- **Python** $\ge 3.11$ (optional, when building the Python bindings or wheels)
+- **Python** ≥ 3.11 (optional, when building the Python bindings or wheels)
 
 HDF5 `1.14.6` and `zlib` are built automatically once at configure time into `.deps/` and reused across subsequent builds; `libdeflate`, `lz4`, `nlohmann_json`, `pybind11`, and `googletest` are fetched via CMake `FetchContent`.
 
@@ -307,13 +299,13 @@ Development, issue tracking and CI happen on GitLab. The GitHub repository
 [RayBotic-NDT/rbscan](https://github.com/RayBotic-NDT/rbscan) is a read-only mirror of `main`: **the tests run in the GitLab pipeline, not on GitHub.**
 The pipeline lints, builds and tests on Windows (MSVC) and Linux (GCC), builds a
 separate project against the installed SDK, smoke-tests a wheel in a clean
-environment, and on a `v<version>` tag publishes the SDKs and wheels and creates
-the release. See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+environment, and on a `v<version>` tag publishes the wheels and the source distribution
+to PyPI and the SDKs to the GitLab Package Registry, and creates the release. See [CONTRIBUTING.md](https://github.com/RayBotic-NDT/rbscan/blob/main/CONTRIBUTING.md) and [CHANGELOG.md](https://github.com/RayBotic-NDT/rbscan/blob/main/CHANGELOG.md).
 
 ---
 
 ## License
 
-rbscan is released under the [MIT License](LICENSE). The binaries bundle HDF5,
+rbscan is released under the [MIT License](https://github.com/RayBotic-NDT/rbscan/blob/main/LICENSE). The binaries bundle HDF5,
 zlib, libdeflate, LZ4, nlohmann/json and pybind11 under their own permissive
-licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+licenses; see [THIRD_PARTY_NOTICES.md](https://github.com/RayBotic-NDT/rbscan/blob/main/THIRD_PARTY_NOTICES.md).
