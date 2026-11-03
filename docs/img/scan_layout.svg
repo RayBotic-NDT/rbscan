@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 380" width="900" height="380" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect width="900" height="380" fill="#ffffff"/>
+
+  <!-- scan directory -->
+  <rect x="10" y="10" width="880" height="360" rx="8" fill="none" stroke="#999" stroke-dasharray="6 4"/>
+  <text x="24" y="32" font-weight="bold" fill="#333">part_42/   (scan directory)</text>
+
+  <!-- master file -->
+  <rect x="24" y="48" width="306" height="306" rx="6" fill="#eef4fb" stroke="#4a78a8"/>
+  <text x="36" y="70" font-weight="bold" fill="#1f4e79">scan.rbscan.h5   (master)</text>
+  <g font-family="Consolas, Menlo, monospace" font-size="12" fill="#222" xml:space="preserve">
+    <text x="36" y="96">/   format, uuid, complete, ...</text>
+    <text x="36" y="118">├ sensors/source_0</text>
+    <text x="36" y="136">│   └ state/        inline</text>
+    <text x="36" y="154">├ sensors/detector_0</text>
+    <text x="36" y="172">│   ├ state/        inline</text>
+    <text x="36" y="190" fill="#b35c00" font-weight="bold">│   └ image/        virtual</text>
+    <text x="36" y="208">├ robots/arm_0</text>
+    <text x="36" y="226">│   ├ joint_states/ inline</text>
+    <text x="36" y="244">│   └ tracking/     inline</text>
+    <text x="36" y="262">├ frames/scan_detector</text>
+    <text x="36" y="280">│   └ pose/         inline</text>
+    <text x="36" y="298">└ acquisitions/ct_0</text>
+    <text x="36" y="316">    └ projections/  inline</text>
+  </g>
+  <text x="36" y="342" font-size="11" fill="#555">node group = schema, schema_json + attributes</text>
+
+  <!-- virtual dataset -->
+  <text x="372" y="62" font-family="Consolas, Menlo, monospace" font-size="12" fill="#b35c00">image/image  [1235, H, W]</text>
+  <rect x="372" y="72" width="150" height="105" fill="#fbe3c8" stroke="#b35c00"/>
+  <rect x="372" y="177" width="150" height="105" fill="#fdeedd" stroke="#b35c00"/>
+  <rect x="372" y="282" width="150" height="50" fill="#fbe3c8" stroke="#b35c00"/>
+  <text x="447" y="120" text-anchor="middle" fill="#333">rows 0 … 499</text>
+  <text x="447" y="225" text-anchor="middle" fill="#333">rows 500 … 999</text>
+  <text x="447" y="312" text-anchor="middle" fill="#333">rows 1000 … 1234</text>
+  <text x="447" y="138" text-anchor="middle" font-size="11" fill="#666">(virtual dataset)</text>
+  <path d="M250,186 C320,186 330,124 370,124" fill="none" stroke="#b35c00" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+
+  <!-- segment files -->
+  <text x="600" y="62" fill="#333" font-weight="bold">sensors/detector_0/image/</text>
+  <g>
+    <rect x="600" y="88" width="270" height="70" rx="5" fill="#e6f2e6" stroke="#4a8a4a"/>
+    <text x="612" y="108" font-family="Consolas, Menlo, monospace" font-size="12" font-weight="bold">seg_000000.h5</text>
+    <text x="612" y="127" font-size="12">time [500], image [500, H, W]</text>
+    <text x="612" y="145" font-size="12" fill="#555">first_sample = 0, segment_index = 0</text>
+  </g>
+  <g>
+    <rect x="600" y="193" width="270" height="70" rx="5" fill="#e6f2e6" stroke="#4a8a4a"/>
+    <text x="612" y="213" font-family="Consolas, Menlo, monospace" font-size="12" font-weight="bold">seg_000001.h5</text>
+    <text x="612" y="232" font-size="12">time [500], image [500, H, W]</text>
+    <text x="612" y="250" font-size="12" fill="#555">first_sample = 500, segment_index = 1</text>
+  </g>
+  <g>
+    <rect x="600" y="282" width="270" height="62" rx="5" fill="#e6f2e6" stroke="#4a8a4a"/>
+    <text x="612" y="301" font-family="Consolas, Menlo, monospace" font-size="12" font-weight="bold">seg_000002.h5</text>
+    <text x="612" y="319" font-size="12">time [235], image [235, H, W]</text>
+    <text x="612" y="336" font-size="12" fill="#555">first_sample = 1000 (last, partly full)</text>
+  </g>
+  <line x1="598" y1="123" x2="524" y2="123" stroke="#555" marker-end="url(#arrow)"/>
+  <line x1="598" y1="228" x2="524" y2="228" stroke="#555" marker-end="url(#arrow)"/>
+  <line x1="598" y1="310" x2="524" y2="310" stroke="#555" marker-end="url(#arrow)"/>
+  <text x="561" y="116" text-anchor="middle" font-size="11" fill="#555">mapped</text>
+</svg>

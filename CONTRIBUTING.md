@@ -20,7 +20,8 @@ GitHub are welcome; they are ported to GitLab by a maintainer.
 - Format C++ with the repository's `.clang-format` (`clang-format -i <files>`);
   the CI rejects unformatted code.
 - Keep the on-disk format compatible. A change to what is written to a scan
-  goes into [docs/format.md](docs/format.md); a field that changes meaning or
+  goes into [docs/format.md](docs/format.md) or, for a schema,
+  [docs/schemas.md](docs/schemas.md); a field that changes meaning or
   type needs a new schema version.
 - Add a line to the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md) for
   anything a user notices.

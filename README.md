@@ -48,7 +48,7 @@ part_42/
 | **Multi-process recording** | A separate process can open a `SegmentedSeriesWriter` directly in the scan directory without touching the master file; `finalize()` (or `rebuild()`) links all discovered segments into `scan.rbscan.h5`. |
 | **Post-hoc editing** | `ScanWriter::open(dir)` opens an existing scan to add, replace, or remove nodes (e.g., resolved CT geometry, reconstructed 3D volumes, or viewer annotations). |
 
-For the full on-disk specification, see [docs/format.md](https://github.com/RayBotic-NDT/rbscan/blob/main/docs/format.md).
+For the full on-disk specification, see [docs/format.md](https://github.com/RayBotic-NDT/rbscan/blob/main/docs/format.md); what every built-in schema stores is in [docs/schemas.md](https://github.com/RayBotic-NDT/rbscan/blob/main/docs/schemas.md).
 
 ---
 
@@ -235,7 +235,7 @@ All CLI operations are also exposed in C++ (`rs::summarize`, `rs::validate`, `rs
 | `raybotic.profile_scanner` | `sensors` | `profile` (segmented 2D laser line profiles). |
 | `raybotic.force_torque` | `sensors` | `wrench` (6-axis force/torque measurements). |
 | `raybotic.robot_arm` | `robots` | `joint_states`, `tracking` (positions, velocities, efforts). |
-| `raybotic.transform` | `frames` | `pose` — dynamic or static 3D transform edge (`parent_frame` → `child_frame`). |
+| `raybotic.transform` | `frames` | `pose` — dynamic or static 3D transform edge (`parent` → `child`). |
 | `raybotic.ct_acquisition` | `acquisitions` | `scan_poses`, `projections` — resolved per-projection CT geometry. |
 | `raybotic.volume` | `volumes` | `slices` (segmented 3D volume; `float32`, `uint16`, or `uint8`) + `voxel_to_world` 4×4 matrix. |
 | `raybotic.annotations` | `annotations` | `markers`, `observations` + full viewer annotation document. |

@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" width="900" height="420" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/>
+    </marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/>
+    </marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/>
+    </marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f5fa8"/>
+    </marker>
+    <marker id="ak" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+  <rect width="900" height="420" fill="#ffffff"/>
+
+  <!-- ===== left panel: side view ===== -->
+  <text x="20" y="28" font-weight="bold" fill="#333">Side view</text>
+
+  <!-- cone -->
+  <polygon points="70,200 430,80 430,320" fill="#fff4d6" stroke="#e0b84a" stroke-width="1"/>
+  <!-- tube -->
+  <rect x="22" y="180" width="40" height="40" rx="4" fill="#ddd" stroke="#777"/>
+  <circle cx="70" cy="200" r="5" fill="#c0392b"/>
+  <text x="70" y="240" text-anchor="middle" fill="#c0392b">source_position</text>
+  <text x="70" y="256" text-anchor="middle" font-size="11" fill="#555">(focal spot = origin</text>
+  <text x="70" y="270" text-anchor="middle" font-size="11" fill="#555">of the source frame)</text>
+  <!-- source z -->
+  <line x1="75" y1="200" x2="150" y2="200" stroke="#c0392b" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="112" y="192" text-anchor="middle" fill="#c0392b">z</text>
+
+  <!-- object / ROI -->
+  <circle cx="240" cy="200" r="34" fill="#d9e6f2" stroke="#4a78a8"/>
+  <circle cx="240" cy="200" r="3" fill="#4a78a8"/>
+  <text x="240" y="150" text-anchor="middle" fill="#1f4e79">object / ROI centre</text>
+
+  <!-- detector -->
+  <rect x="430" y="80" width="10" height="240" fill="#555"/>
+  <circle cx="430" cy="200" r="5" fill="#1f5fa8"/>
+  <!-- detector frame -->
+  <line x1="425" y1="200" x2="355" y2="200" stroke="#1f5fa8" stroke-width="2" marker-end="url(#ab)"/>
+  <text x="365" y="192" fill="#1f5fa8">z</text>
+  <line x1="452" y1="200" x2="452" y2="135" stroke="#2e7d32" stroke-width="2" marker-end="url(#ag)"/>
+  <text x="459" y="142" fill="#2e7d32">y (up)</text>
+  <circle cx="452" cy="200" r="7" fill="none" stroke="#1f5fa8" stroke-width="1.5"/>
+  <circle cx="452" cy="200" r="2" fill="#1f5fa8"/>
+  <text x="463" y="205" fill="#1f5fa8">x</text>
+  <text x="463" y="222" font-size="11" fill="#555">(out of the page)</text>
+  <text x="438" y="345" text-anchor="middle" fill="#1f5fa8">detector_position</text>
+  <text x="438" y="361" text-anchor="middle" font-size="11" fill="#555">(image centre = origin of the detector frame)</text>
+
+  <!-- distances -->
+  <line x1="70" y1="292" x2="240" y2="292" stroke="#555" marker-start="url(#ak)" marker-end="url(#ak)"/>
+  <text x="155" y="286" text-anchor="middle" fill="#333">fod</text>
+  <line x1="70" y1="384" x2="430" y2="384" stroke="#555" marker-start="url(#ak)" marker-end="url(#ak)"/>
+  <text x="250" y="378" text-anchor="middle" fill="#333">fdd</text>
+  <line x1="70" y1="276" x2="70" y2="392" stroke="#bbb" stroke-dasharray="3 3"/>
+  <line x1="240" y1="236" x2="240" y2="300" stroke="#bbb" stroke-dasharray="3 3"/>
+  <line x1="430" y1="368" x2="430" y2="392" stroke="#bbb" stroke-dasharray="3 3"/>
+
+  <!-- separator -->
+  <line x1="540" y1="20" x2="540" y2="400" stroke="#ddd"/>
+
+  <!-- ===== right panel: detector seen from the source ===== -->
+  <text x="560" y="28" font-weight="bold" fill="#333">Detector, seen from the source</text>
+  <rect x="580" y="70" width="280" height="240" fill="#f2f2f2" stroke="#555" stroke-width="1.5"/>
+  <!-- a few pixels in the top-left corner -->
+  <g stroke="#bbb" stroke-width="1">
+    <line x1="600" y1="70" x2="600" y2="130"/>
+    <line x1="620" y1="70" x2="620" y2="130"/>
+    <line x1="640" y1="70" x2="640" y2="130"/>
+    <line x1="580" y1="90" x2="660" y2="90"/>
+    <line x1="580" y1="110" x2="660" y2="110"/>
+    <line x1="580" y1="130" x2="660" y2="130"/>
+  </g>
+  <rect x="580" y="70" width="20" height="20" fill="#f6c9c3" stroke="#c0392b"/>
+  <text x="672" y="88" font-size="12" fill="#c0392b">pixel (0, 0): row 0, column 0</text>
+  <text x="672" y="104" font-size="11" fill="#555">pixel_size = pitch × binning</text>
+
+  <!-- index directions along the edges -->
+  <line x1="590" y1="58" x2="700" y2="58" stroke="#555" marker-end="url(#ak)"/>
+  <text x="708" y="62" font-size="12" fill="#333">column</text>
+  <line x1="568" y1="80" x2="568" y2="190" stroke="#555" marker-end="url(#ak)"/>
+  <text x="562" y="210" font-size="12" fill="#333" text-anchor="middle">row</text>
+
+  <!-- centre and frame -->
+  <circle cx="720" cy="190" r="5" fill="#1f5fa8"/>
+  <line x1="725" y1="190" x2="810" y2="190" stroke="#1f5fa8" stroke-width="2" marker-end="url(#ab)"/>
+  <text x="768" y="182" fill="#1f5fa8">u = x</text>
+  <line x1="720" y1="185" x2="720" y2="130" stroke="#2e7d32" stroke-width="2" marker-end="url(#ag)"/>
+  <text x="727" y="142" fill="#2e7d32">y</text>
+  <line x1="720" y1="195" x2="720" y2="265" stroke="#1f5fa8" stroke-width="2" marker-end="url(#ab)"/>
+  <text x="727" y="258" fill="#1f5fa8">v = −y</text>
+  <text x="704" y="210" font-size="11" fill="#555" text-anchor="end">z towards</text>
+  <text x="704" y="224" font-size="11" fill="#555" text-anchor="end">the viewer</text>
+
+  <text x="580" y="340" font-size="12" fill="#333">detector_position = pixel ((W − 1) / 2, (H − 1) / 2)</text>
+  <text x="580" y="358" font-size="12" fill="#333">detector_u = R · (1, 0, 0),   detector_v = R · (0, −1, 0)</text>
+  <text x="580" y="376" font-size="12" fill="#333">R = rotation of the detector frame in the world</text>
+  <text x="580" y="394" font-size="11" fill="#555">pixel centres at integer (column, row)</text>
+</svg>
