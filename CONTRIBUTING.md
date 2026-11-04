@@ -23,6 +23,10 @@ GitHub are welcome; they are ported to GitLab by a maintainer.
   goes into [docs/format.md](docs/format.md) or, for a schema,
   [docs/schemas.md](docs/schemas.md); a field that changes meaning or
   type needs a new schema version.
+- After changing `schemas/*.json`, run `python tools/gen_schema_api.py`: it
+  regenerates the typed API (`include/raybotic/scan/schemas.hpp`,
+  `python/rbscan/schema_api.py`) and its round-trip test. The CI fails while
+  they are out of date.
 - Add a line to the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md) for
   anything a user notices.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)

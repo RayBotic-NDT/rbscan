@@ -277,3 +277,56 @@ def test_compression_codecs(tmp_path, compression):
     assert reader["calibration"].read_sample("dark", 0)[0, 0] == pytest.approx(1.5)
     assert rbscan.validate(tmp_path)["ok"]
 
+
+
+def test_simulation_scene_keeps_the_mesh_bit_for_bit(tmp_path):
+    # -0, a denormal and values a text format or a unit conversion would change.
+    vertices = np.array([[-0.0, 1e-40, 0.1], [3.4028235e38, 0.0, -2.5],
+                         [0.0, 7.0, 1.0 / 3.0], [1.0, 1.0, 1.0]], np.float32)
+    triangles = np.array([[0, 1, 2], [0, 3, 1], [1, 3, 2], [2, 3, 0]], np.uint32)
+    document = json.dumps({"format": "raybotic-simulation-scene", "version": 1})
+    with rbscan.ScanWriter.create(tmp_path) as scan:
+        scene = scan.add_node(
+            "scene", "raybotic.simulation_scene", application="pytest",
+            format="raybotic-simulation-scene/1", document=document,
+            object_names=["Düse"], object_sources=["düse.stl"], object_materials=["Ti"],
+            voltage_kv=160.0, sensor_width=1024,
+        )
+        scene.series("objects").append(
+            1, from_volume=False, unit=0, scale=1.0, rotation=[0, 90, 0],
+            position=[0, 0, 40], is_compound=False, density=4.5, enabled=True,
+            colour=[0.94, 0.78, 0.35], first_vertex=0, vertex_count=4, first_triangle=0,
+            triangle_count=4, first_registration=0, registration_count=0,
+        )
+        v = scene.series("vertices")
+        for p in vertices:
+            v.append(1, position=p)
+        t = scene.series("triangles")
+        for c in triangles:
+            t.append(1, vertices=c)
+
+    node = rbscan.ScanReader(tmp_path)["simulations/scene"]
+    assert node.attributes["object_names"] == ["Düse"]
+    assert json.loads(node.attributes["document"])["version"] == 1
+    assert "registration" not in node.series_names  # no rows written
+    stored = node["vertices"].read("position")
+    assert stored.dtype == np.float32
+    assert stored.tobytes() == vertices.tobytes()
+    assert np.signbit(stored[0, 0])
+    assert node["triangles"].read("vertices").tobytes() == triangles.tobytes()
+    assert node["objects"].units("position") == "mm"
+
+
+def test_append_many(tmp_path):
+    vertices = np.arange(30, dtype=np.float32).reshape(10, 3)
+    with rbscan.ScanWriter.create(tmp_path) as scan:
+        scene = scan.add_node("scene", "raybotic.simulation_scene", application="pytest",
+                              format="x/1", document="{}")
+        v = scene.series("vertices")
+        v.append_many(5, position=vertices[:6])
+        v.append_many(np.array([6, 7, 8, 9]), position=vertices[6:])
+        with pytest.raises(rbscan.Error):
+            v.append_many([1, 2], position=vertices[:3])  # 3 samples, 2 times
+    s = rbscan.ScanReader(tmp_path)["simulations/scene"]["vertices"]
+    assert s.read("position").tobytes() == vertices.tobytes()
+    assert s.time().tolist() == [5] * 6 + [6, 7, 8, 9]

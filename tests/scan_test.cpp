@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstring>
 #include <raybotic/scan/rbscan.hpp>
 
 #include "test_util.hpp"
@@ -292,6 +293,99 @@ TEST(Scan, TrajectoryPlanTables) {
     EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
 }
 
+TEST(Scan, SimulationSceneKeepsTheMeshBitForBit) {
+    TempDir dir;
+    // A tetrahedron with values a text format or a unit conversion would
+    // change: -0, a denormal, 0.1 and the largest float.
+    const float vertices[4][3] = {{-0.0f, 1e-40f, 0.1f},
+                                  {3.4028235e38f, 0.0f, -2.5f},
+                                  {0.0f, 7.0f, 1.0f / 3.0f},
+                                  {1.0f, 1.0f, 1.0f}};
+    const std::uint32_t triangles[4][3] = {{0, 1, 2}, {0, 3, 1}, {1, 3, 2}, {2, 3, 0}};
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto scene = scan.add_node(
+            "scene", "raybotic.simulation_scene",
+            {{"application", std::string("test")},
+             {"format", std::string("raybotic-simulation-scene/1")},
+             {"document", std::string("{}")},
+             {"object_names", std::vector<std::string>{"D\xC3\xBCse"}},
+             {"object_sources", std::vector<std::string>{"C:/stl/duese.stl"}},
+             {"object_materials", std::vector<std::string>{"Ti"}},
+             {"registration_markers", std::vector<std::string>{"M1"}},
+             {"voltage_kv", 160.0},
+             {"binning", std::int64_t{2}}});
+        EXPECT_EQ(scene.path(), "simulations/scene");
+        const double rotation[3] = {0.0, 90.0, -2.5};
+        const double position[3] = {1.25, -3.0, 40.0};
+        const float colour[3] = {0.94f, 0.78f, 0.35f};
+        const std::uint8_t unit = 2;
+        const bool no = false;
+        const bool yes = true;
+        const std::uint64_t zero = 0;
+        const std::uint64_t one = 1;
+        const std::uint64_t four = 4;
+        scene.series("objects").append(1, {{"from_volume", rs::scalar(no)},
+                                           {"unit", rs::scalar(unit)},
+                                           {"scale", rs::scalar(1.5)},
+                                           {"rotation", rs::view(rotation, {3})},
+                                           {"position", rs::view(position, {3})},
+                                           {"is_compound", rs::scalar(no)},
+                                           {"density", rs::scalar(4.5)},
+                                           {"enabled", rs::scalar(yes)},
+                                           {"colour", rs::view(colour, {3})},
+                                           {"first_vertex", rs::scalar(zero)},
+                                           {"vertex_count", rs::scalar(four)},
+                                           {"first_triangle", rs::scalar(zero)},
+                                           {"triangle_count", rs::scalar(four)},
+                                           {"first_registration", rs::scalar(zero)},
+                                           {"registration_count", rs::scalar(one)}});
+        auto v = scene.series("vertices");
+        for (const auto& p : vertices) v.append(1, {{"position", rs::view(p, {3})}});
+        auto t = scene.series("triangles");
+        for (const auto& c : triangles) t.append(1, {{"vertices", rs::view(c, {3})}});
+        const double point[3] = {0.5, 0.25, 0.0};
+        const std::int32_t marker = -1;
+        const std::int8_t axis = 2;
+        scene.series("registration")
+            .append(1, {{"marker_id", rs::scalar(marker)},
+                        {"placed", rs::scalar(yes)},
+                        {"mesh_point", rs::view(point, {3})},
+                        {"section_axis", rs::scalar(axis)},
+                        {"section_offset", rs::scalar(-0.75)}});
+        EXPECT_THROW(scan.add_node("bad", "raybotic.simulation_scene",
+                                   {{"application", std::string("test")}}),
+                     rs::Error);
+        scan.finalize();
+    }
+    const auto reader = rs::ScanReader::open(dir.path());
+    const auto scene = reader.node("simulations/scene");
+    EXPECT_EQ(scene.schema().id(), "raybotic.simulation_scene/1");
+    EXPECT_EQ(std::get<std::vector<std::string>>(*scene.attribute("object_names"))[0],
+              "D\xC3\xBCse");
+    EXPECT_EQ(std::get<std::int64_t>(*scene.attribute("binning")), 2);
+    EXPECT_FALSE(scene.attribute("sensor_width").has_value());
+
+    const auto stored = scene.series("vertices").read("position");
+    const auto floats = stored.values<float>();
+    ASSERT_EQ(floats.size(), 12u);
+    EXPECT_EQ(std::memcmp(floats.data(), vertices, sizeof(vertices)), 0);
+    EXPECT_TRUE(std::signbit(floats[0]));
+    const auto corners =
+        scene.series("triangles").read("vertices").values<std::uint32_t>();
+    ASSERT_EQ(corners.size(), 12u);
+    EXPECT_EQ(std::memcmp(corners.data(), triangles, sizeof(triangles)), 0);
+
+    const auto objects = scene.series("objects");
+    EXPECT_EQ(objects.units("position"), "mm");
+    EXPECT_DOUBLE_EQ(objects.read_sample("position", 0).values<double>()[2], 40.0);
+    EXPECT_EQ(objects.read_sample("triangle_count", 0).values<std::uint64_t>()[0], 4u);
+    const auto registration = scene.series("registration");
+    EXPECT_EQ(registration.read_sample("marker_id", 0).values<std::int32_t>()[0], -1);
+    EXPECT_EQ(registration.read_sample("section_axis", 0).values<std::int8_t>()[0], 2);
+    EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
+}
+
 TEST(Scan, LaterSessionsAppendToAnInlineSeries) {
     TempDir dir;
     // Small chunks, so sessions end inside a chunk and across chunk borders.
@@ -375,4 +469,34 @@ TEST(Scan, ReconstructionSettingsAndRunStatus) {
     EXPECT_EQ(std::get<std::string>(*run.attribute("algorithm")), "fbp");
     EXPECT_EQ(run.series("rois").read_sample("dims", 0).values<std::uint32_t>()[2], 32u);
     EXPECT_TRUE(rs::validate(dir.path()).ok()) << rs::to_text(rs::validate(dir.path()));
+}
+
+TEST(Scan, AppendManyWritesWholeColumns) {
+    TempDir dir;
+    const std::vector<float> positions = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    const std::vector<std::uint32_t> corners = {0, 1, 2};
+    {
+        auto scan = rs::ScanWriter::create(dir.path());
+        auto scene = scan.add_node("scene", "raybotic.simulation_scene",
+                                   {{"application", std::string("test")},
+                                    {"format", std::string("x/1")},
+                                    {"document", std::string("{}")}});
+        auto vertices = scene.series("vertices");
+        vertices.append_many(5, 3, {{"position", rs::view(positions)}});
+        const std::vector<std::int64_t> times = {7, 8};
+        // Converted per sample like append(): float64 into a float32 field.
+        const std::vector<double> more = {9, 10, 11, 12, 13, 14};
+        vertices.append_many(times, {{"position", rs::view(more)}});
+        scene.series("triangles").append_many(5, 1, {{"vertices", rs::view(corners)}});
+        EXPECT_THROW(vertices.append_many(9, 2, {{"position", rs::view(positions)}}),
+                     rs::Error);  // 9 values are not 2 samples of 3
+        scan.finalize();
+    }
+    const auto node = rs::ScanReader::open(dir.path()).node("simulations/scene");
+    const auto vertices = node.series("vertices");
+    ASSERT_EQ(vertices.size(), 5u);
+    EXPECT_EQ(vertices.time(), (std::vector<std::int64_t>{5, 5, 5, 7, 8}));
+    const auto stored = vertices.read("position").values<float>();
+    EXPECT_FLOAT_EQ(stored[8], 8.0f);
+    EXPECT_FLOAT_EQ(stored[14], 14.0f);
 }

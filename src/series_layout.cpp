@@ -150,6 +150,35 @@ void stage_sample(const SeriesLayout& layout, std::vector<ChunkBuffer>& buffers,
     }
 }
 
+void for_each_row(
+    const SeriesLayout& layout, std::uint64_t count, std::span<const FieldValue> columns,
+    const std::function<void(std::uint64_t, std::span<const FieldValue>)>& row) {
+    std::vector<FieldValue> sample(columns.begin(), columns.end());
+    std::vector<std::size_t> stride(columns.size());
+    for (std::size_t c = 0; c < columns.size(); ++c) {
+        const ConstArrayView& column = columns[c].value;
+        const Shape shape = layout.sample_shape(columns[c].name);
+        const std::uint64_t per_sample = element_count(shape);
+        if (column.size() != count * per_sample) {
+            throw Error("series '" + layout.spec.name + "': column '" +
+                        std::string(columns[c].name) + "' has " +
+                        std::to_string(column.size()) + " elements, " +
+                        std::to_string(count) + " samples of " +
+                        std::to_string(per_sample) + " need " +
+                        std::to_string(count * per_sample));
+        }
+        stride[c] = static_cast<std::size_t>(per_sample) * dtype_size(column.dtype);
+        sample[c].value.shape = shape;
+    }
+    for (std::uint64_t i = 0; i < count; ++i) {
+        for (std::size_t c = 0; c < columns.size(); ++c) {
+            sample[c].value.data =
+                static_cast<const std::byte*>(columns[c].value.data) + i * stride[c];
+        }
+        row(i, sample);
+    }
+}
+
 void zero_tail(const FieldLayout& field, std::byte* buffer, std::uint64_t valid) {
     const std::size_t used = static_cast<std::size_t>(valid) * field.sample_bytes;
     if (used < field.chunk_bytes())

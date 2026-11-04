@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
@@ -63,6 +64,13 @@ using ChunkBuffer = std::unique_ptr<std::byte[]>;
 void stage_sample(const SeriesLayout& layout, std::vector<ChunkBuffer>& buffers,
                   std::span<const std::uint64_t> slots, std::int64_t time_ns,
                   std::span<const FieldValue> fields);
+
+/// Splits whole columns (each `count` samples of one field, row after row)
+/// into the fields of one sample and calls `row(i, fields)` for every row.
+/// Throws for unknown fields and columns of the wrong size.
+void for_each_row(
+    const SeriesLayout& layout, std::uint64_t count, std::span<const FieldValue> columns,
+    const std::function<void(std::uint64_t, std::span<const FieldValue>)>& row);
 
 /// Zeroes the bytes after `valid` samples, so partial chunks compress well and
 /// carry no stale memory.

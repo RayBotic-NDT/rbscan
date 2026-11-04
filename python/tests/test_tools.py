@@ -129,4 +129,4 @@ def test_cli(tmp_path):
     (tmp_path / "sensors/detector_0/image/seg_000001.h5").unlink()
     out = run_cli("validate", tmp_path)
     assert out.returncode == 1 and "out of sequence" in out.stdout
-    assert run_cli("schemas").stdout.count("raybotic.") == 15
+    assert run_cli("schemas").stdout.count("raybotic.") == 16

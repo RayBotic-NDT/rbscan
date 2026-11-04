@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(rbscan
-    VERSION 0.2.1
+    VERSION 0.3.0
     DESCRIPTION "RayBotic scan data format: HDF5 master file + segmented sensor streams"
     LANGUAGES C CXX)
 

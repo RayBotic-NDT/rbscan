@@ -161,6 +161,20 @@ SeriesWriter::SeriesWriter(std::shared_ptr<Impl> impl) : impl_(std::move(impl)) 
 void SeriesWriter::append(std::int64_t time_ns, std::span<const FieldValue> fields) {
     impl_->append(time_ns, fields);
 }
+void SeriesWriter::append_many(std::span<const std::int64_t> times,
+                               std::span<const FieldValue> columns) {
+    detail::for_each_row(impl_->layout, times.size(), columns,
+                         [&](std::uint64_t i, std::span<const FieldValue> fields) {
+                             impl_->append(times[i], fields);
+                         });
+}
+void SeriesWriter::append_many(std::int64_t time_ns, std::uint64_t count,
+                               std::span<const FieldValue> columns) {
+    detail::for_each_row(impl_->layout, count, columns,
+                         [&](std::uint64_t, std::span<const FieldValue> fields) {
+                             impl_->append(time_ns, fields);
+                         });
+}
 void SeriesWriter::flush() { impl_->flush(); }
 std::uint64_t SeriesWriter::size() const { return impl_->total; }
 const SeriesSpec& SeriesWriter::spec() const { return impl_->layout.spec; }

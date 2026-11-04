@@ -11,6 +11,31 @@ library release can read every format version with the same major number
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03
+
+Writes and reads format version 1.0.
+
+### Added
+
+- Schema `raybotic.simulation_scene/1` (category `simulations`): the objects of
+  an X-ray simulation with their meshes, stored bit for bit in file units
+  (`vertices`, `triangles`), placement, material and registration points, the
+  settings of simulation, tube and detector, and the application's complete
+  scene document.
+- Typed API for every built-in schema, generated from `schemas/*.json` by
+  `tools/gen_schema_api.py`: `raybotic/scan/schemas.hpp` (C++, header-only)
+  and `rbscan.schema_api` (Python dataclasses), with an attributes type per
+  schema and row and column types per series (`add`, `read`, `append`,
+  `read_<series>`). See [docs/api.md](docs/api.md).
+- Helpers for schemas whose tables belong together, in C++
+  (`raybotic/scan/schema_helpers.hpp`) and Python: volumes (now in C++ too),
+  simulation scenes object by object with their meshes, trajectory plans,
+  annotations, and a CT projection with its image.
+- `SeriesWriter::append_many` and `SegmentedSeriesWriter::append_many` (also in
+  Python): many samples in one call, as whole columns.
+- Examples for the typed API in C++ (`typed_ct_scan`, `simulation_scene`,
+  `plan_and_annotate`) and Python (the same three plus `dump_typed.py`).
+
 ## [0.2.1] - 2026-11-02
 
 First release published on PyPI and GitHub. Writes and reads format version 1.0.

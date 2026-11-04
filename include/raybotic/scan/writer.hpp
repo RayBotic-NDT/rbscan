@@ -94,6 +94,24 @@ class RBSCAN_API SeriesWriter {
     void append(std::int64_t time_ns, std::initializer_list<FieldValue> fields) {
         append(time_ns, std::span<const FieldValue>(fields.begin(), fields.size()));
     }
+    /// Appends `times.size()` samples at once. Each column holds one field of
+    /// all of them, sample after sample (shape [count, sample shape...]; a
+    /// flat buffer is fine); every sample follows the rules of append().
+    void append_many(std::span<const std::int64_t> times,
+                     std::span<const FieldValue> columns);
+    void append_many(std::span<const std::int64_t> times,
+                     std::initializer_list<FieldValue> columns) {
+        append_many(times, std::span<const FieldValue>(columns.begin(), columns.size()));
+    }
+    /// `count` samples at once, all with the same time stamp (a table written
+    /// in one go).
+    void append_many(std::int64_t time_ns, std::uint64_t count,
+                     std::span<const FieldValue> columns);
+    void append_many(std::int64_t time_ns, std::uint64_t count,
+                     std::initializer_list<FieldValue> columns) {
+        append_many(time_ns, count,
+                    std::span<const FieldValue>(columns.begin(), columns.size()));
+    }
     void flush();
     [[nodiscard]] std::uint64_t size() const;
     [[nodiscard]] const SeriesSpec& spec() const;
@@ -130,6 +148,24 @@ class RBSCAN_API SegmentedSeriesWriter {
     void append(std::int64_t time_ns, std::span<const FieldValue> fields);
     void append(std::int64_t time_ns, std::initializer_list<FieldValue> fields) {
         append(time_ns, std::span<const FieldValue>(fields.begin(), fields.size()));
+    }
+    /// Appends `times.size()` samples at once. Each column holds one field of
+    /// all of them, sample after sample (shape [count, sample shape...]; a
+    /// flat buffer is fine); every sample follows the rules of append().
+    void append_many(std::span<const std::int64_t> times,
+                     std::span<const FieldValue> columns);
+    void append_many(std::span<const std::int64_t> times,
+                     std::initializer_list<FieldValue> columns) {
+        append_many(times, std::span<const FieldValue>(columns.begin(), columns.size()));
+    }
+    /// `count` samples at once, all with the same time stamp (a table written
+    /// in one go).
+    void append_many(std::int64_t time_ns, std::uint64_t count,
+                     std::span<const FieldValue> columns);
+    void append_many(std::int64_t time_ns, std::uint64_t count,
+                     std::initializer_list<FieldValue> columns) {
+        append_many(time_ns, count,
+                    std::span<const FieldValue>(columns.begin(), columns.size()));
     }
     /// Waits until everything appended so far is on disk and visible to readers.
     void flush();

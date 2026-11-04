@@ -79,6 +79,7 @@ per **node**. The category comes from the schema, the name from the writer:
 /volumes/<name>          volume
 /annotations/<name>      annotations
 /imports/<name>          ezrt_import
+/simulations/<name>      simulation_scene
 /<category>/<name>       whatever a custom schema declares
 ```
 

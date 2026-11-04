@@ -4,7 +4,8 @@ This is what each built-in schema stores: its attributes (constant per node)
 and its series (one row per time stamp). How these turn into HDF5 groups and
 datasets, and how a schema is written, is in [format.md](format.md). The
 definitions themselves are the JSON files in [`schemas/`](../schemas); every
-node also carries its schema as `schema_json`.
+node also carries its schema as `schema_json`. Each schema also has a typed
+C++ and Python API generated from it: [api.md](api.md).
 
 In the tables below, **Req.** marks required attributes, **Shape** is the shape
 of *one* sample (the stored dataset has one more leading dimension, the sample
@@ -29,6 +30,7 @@ its meaning (here a 4x4 matrix).
 | [`raybotic.trajectory_plan/1`](#raybotictrajectory_plan1) | `trajectories` | `trajectories`, `poses` (inline) | a set of planned trajectories |
 | [`raybotic.reconstruction/1`](#rayboticreconstruction1) | `reconstructions` | `rois` (inline) | reconstruction settings or one run |
 | [`raybotic.volume/1`](#rayboticvolume1) | `volumes` | `slices` (segmented) | a 3-D volume |
+| [`raybotic.simulation_scene/1`](#rayboticsimulation_scene1) | `simulations` | `objects`, `vertices`, `triangles`, `registration` (inline) | the objects and settings of an X-ray simulation |
 | [`raybotic.annotations/1`](#rayboticannotations1) | `annotations` | `markers`, `observations` (inline) | the annotations of a viewer |
 | [`raybotic.ezrt_import/1`](#rayboticezrt_import1) | `imports` | `headers` (inline) | projections imported from EZRT `.raw` files |
 
@@ -55,6 +57,7 @@ flowchart LR
     vol["volumes/vol_0<br/><b>volume</b>"]
     ann["annotations/viewer<br/><b>annotations</b>"]
     imp["imports/ezrt<br/><b>ezrt_import</b>"]
+    sim["simulations/scene<br/><b>simulation_scene</b>"]
   end
   acq -- source --> src
   acq -- detector --> det
@@ -71,11 +74,14 @@ flowchart LR
   vol -- acquisition --> acq
   ann -- acquisition --> acq
   imp -- acquisition --> acq
+  sim -- acquisition --> acq
 ```
 
 Rows are linked by index as well: `projections.image_index` is a sample of the
 detector's `image` series, and `observations.projection` and
 `headers` rows are rows of the acquisition's `projections`.
+A simulation scene's `objects` rows own ranges of its `vertices`, `triangles`
+and `registration` rows.
 
 A minimal CT scan therefore has a source, a detector, the frames of both and
 the acquisition. Robots, cameras and the derived nodes are optional.
@@ -530,6 +536,110 @@ Series **`slices`** (segmented):
 
 So the dataset `volumes/<name>/slices/slice` is the whole volume as
 `[depth, height, width]`, indexed `[k, j, i]`.
+
+---
+
+## Simulation
+
+### `raybotic.simulation_scene/1`
+
+The objects of an X-ray simulation - each a triangle mesh with its placement
+and material - and the settings of simulation, tube and detector. Attribute
+`document` is the application's complete scene document (for the RayBotic
+Viewer the scene JSON, format `raybotic-simulation-scene/1`) and the source of
+truth for placement and settings; its objects are the rows of `objects`, in
+order, and name no mesh files. The `objects` and `registration` tables and the
+setting attributes repeat it for tools that do not parse it.
+
+The meshes are stored only here, in `vertices` and `triangles`, exactly as the
+application holds them (bit for bit, float32): in the file units of their
+source, so the placement still applies. An STL has no unit; `objects.unit`
+says what the application took it for. Nothing is welded, closed or reordered,
+so an open or damaged mesh stays as it was.
+
+| Attribute | Type | Req. | Units | Meaning |
+|---|---|:-:|---|---|
+| `application` | string | yes | | what wrote the scene, e.g. `RayBotic Viewer 0.1.1` |
+| `format` | string | yes | | format of `document`, e.g. `raybotic-simulation-scene/1` |
+| `document` | string | yes | | the complete scene document (JSON) |
+| `modified` | string | | | ISO 8601 UTC |
+| `acquisition` | string | | | node path of a ct_acquisition simulated from this scene |
+| `object_names`, `object_sources`, `object_materials` | string[] | | | per row of `objects`: name, where the mesh came from (STL path, UTF-8, or e.g. `Volumen part.rek`), element symbol or formula |
+| `registration_markers` | string[] | | | per row of `registration`: label of the marker |
+| `spectrum_bin_kev` | float64 | | keV | simulation: width of a spectrum bin |
+| `focal_spot_samples` | int32 | | | simulation: samples across the focal spot |
+| `scintillator`, `scintillator_um` | string, float64 | | –, um | simulation: scintillator material and thickness |
+| `dark_counts`, `counts_per_photon`, `read_noise_counts` | float64 | | counts | simulation: detector response |
+| `photons_per_ua_ms_mm2` | float64 | | | simulation: photons per uA, ms and mm² at 1 m |
+| `poisson_noise` | bool | | | simulation: quantum noise on |
+| `voltage_kv`, `current_ua`, `focal_spot_um` | float64 | | kV, uA, um | tube; missing when the scene has no tube settings |
+| `filter_material`, `filter_thickness_mm` | string, float64 | | –, mm | pre-filter; empty = none |
+| `binning`, `averages` | uint8, uint32 | | | detector; missing when the scene has no detector settings |
+| `integration_time_ms`, `gain` | float64 | | ms, – | detector |
+| `sensor_width`, `sensor_height` | uint32 | | px | simulated sensor without binning; missing when the scene asks for none |
+| `pixel_pitch_u_um`, `pixel_pitch_v_um` | float64 | | um | simulated sensor |
+
+The four series form parent/child tables, as in
+[`raybotic.trajectory_plan/1`](#raybotictrajectory_plan1): object *i* owns the
+rows `first_vertex … first_vertex + vertex_count - 1` of `vertices`, the rows
+`first_triangle … first_triangle + triangle_count - 1` of `triangles` and the
+rows `first_registration … first_registration + registration_count - 1` of
+`registration`. Triangle corners count from the object's first vertex, so one
+object's mesh is two slices:
+
+```python
+o = node["objects"][i]
+v = node["vertices"].read("position", o["first_vertex"], o["vertex_count"])
+f = node["triangles"].read("vertices", o["first_triangle"], o["triangle_count"])
+```
+
+A series without rows (no registration points, say) is not written. Every
+row's time is when the scene was written.
+
+Series **`objects`** (inline): one row per object, in scene order. World
+coordinates (mm) = file coordinates × unit × `scale`, rotated about the mesh's
+bounding-box centre (X, then Y, then Z, world axes), with that centre moved to
+`position`.
+
+| Field | Type | Shape | Units | Meaning |
+|---|---|---|---|---|
+| `from_volume` | bool | | | surface taken from a volume: the mesh is in world mm already and the placement is the identity |
+| `unit` | uint8 | | | file unit: 0 mm, 1 cm, 2 m, 3 inch |
+| `scale` | float64 | | | on top of `unit` |
+| `rotation` | float64 | `[3]` | deg | about the centre, X then Y then Z |
+| `position` | float64 | `[3]` | mm | where the bounding-box centre goes, world frame |
+| `is_compound` | bool | | | the material is a formula, not an element |
+| `density` | float64 | | g/cm3 | 0 = the element's own density |
+| `enabled` | bool | | | part of the simulation |
+| `colour` | float32 | `[3]` | | RGB 0…1 in a 3D view |
+| `first_vertex`, `vertex_count` | uint64 | | | its rows in `vertices` |
+| `first_triangle`, `triangle_count` | uint64 | | | its rows in `triangles` |
+| `first_registration`, `registration_count` | uint64 | | | its rows in `registration` |
+
+Series **`vertices`** (inline): mesh vertices, object after object.
+
+| Field | Type | Shape | Units | Meaning |
+|---|---|---|---|---|
+| `position` | float32 | `[3]` | file units | x, y, z as held by the application (world mm for `from_volume`) |
+
+Series **`triangles`** (inline): mesh triangles, object after object.
+
+| Field | Type | Shape | Meaning |
+|---|---|---|---|
+| `vertices` | uint32 | `[3]` | corners, as rows counted from the object's `first_vertex` |
+
+Series **`registration`** (inline): points for registering an object onto
+the scan - a spot of the mesh and the marker (in
+[`raybotic.annotations/1`](#rayboticannotations1)) that shows the same
+feature - object after object.
+
+| Field | Type | Shape | Units | Meaning |
+|---|---|---|---|---|
+| `marker_id` | int32 | | | marker id in the annotations; -1 = none |
+| `placed` | bool | | | `mesh_point` has been set |
+| `mesh_point` | float64 | `[3]` | file units | the spot on the mesh |
+| `section_axis` | int8 | | | section it was clicked in: axis 0…2; -1 = on the surface in a 3D view |
+| `section_offset` | float64 | | file units | offset of that section |
 
 ---
 

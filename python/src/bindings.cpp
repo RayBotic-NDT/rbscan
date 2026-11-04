@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <raybotic/scan/rbscan.hpp>
+#include <span>
 
 namespace py = pybind11;
 namespace rs = raybotic::scan;
@@ -241,6 +242,30 @@ const char* storage_name(rs::Storage s) {
     return s == rs::Storage::Segmented ? "segmented" : "inline";
 }
 
+/// append_many(): time stamps (one per sample, or one int for all) and whole
+/// columns; the count comes from the time stamps or the columns' first axis.
+template <class Writer>
+void append_columns(Writer& w, const py::object& times, const py::object& fields,
+                    const py::kwargs& kwargs) {
+    Sample columns(fields, kwargs);
+    if (py::isinstance<py::int_>(times) ||
+        py::isinstance(times, py::module_::import("numpy").attr("integer"))) {
+        if (columns.arrays.empty()) throw rs::Error("append_many needs columns");
+        const auto& first = columns.arrays.front();
+        if (first.ndim() < 1) throw rs::Error("columns need a sample axis");
+        const auto count = static_cast<std::uint64_t>(first.shape(0));
+        const auto t = times.cast<std::int64_t>();
+        py::gil_scoped_release release;
+        w.append_many(t, count, columns.fields);
+        return;
+    }
+    py::array_t<std::int64_t, py::array::c_style | py::array::forcecast> t(times);
+    const std::span<const std::int64_t> span(t.data(),
+                                             static_cast<std::size_t>(t.size()));
+    py::gil_scoped_release release;
+    w.append_many(span, columns.fields);
+}
+
 std::uint64_t count_arg(const py::object& count) {
     return count.is_none() ? rs::all : count.cast<std::uint64_t>();
 }
@@ -326,6 +351,10 @@ PYBIND11_MODULE(_rbscan, m) {
             },
             py::arg("time_ns"), py::arg("fields") = py::none(),
             "Appends one sample: time in ns plus every field (dict and/or keywords).")
+        .def("append_many", &append_columns<rs::SeriesWriter>, py::arg("times"),
+             py::arg("fields") = py::none(),
+             "Appends many samples at once: times (one int for all, or one per sample) "
+             "plus whole columns [count, *sample_shape] (dict and/or keywords).")
         .def("flush", &rs::SeriesWriter::flush, py::call_guard<py::gil_scoped_release>())
         .def("__len__", &rs::SeriesWriter::size)
         .def_property_readonly("name",
@@ -375,6 +404,9 @@ PYBIND11_MODULE(_rbscan, m) {
                 w.append(time_ns, sample.fields);
             },
             py::arg("time_ns"), py::arg("fields") = py::none())
+        .def("append_many", &append_columns<rs::SegmentedSeriesWriter>, py::arg("times"),
+             py::arg("fields") = py::none(),
+             "Appends many samples at once, see SeriesWriter.append_many.")
         .def("flush", &rs::SegmentedSeriesWriter::flush,
              py::call_guard<py::gil_scoped_release>())
         .def("close", &rs::SegmentedSeriesWriter::close,

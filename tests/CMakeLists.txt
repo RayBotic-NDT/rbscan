@@ -11,6 +11,8 @@ FetchContent_MakeAvailable(googletest)
 add_executable(rbscan_tests
     schema_test.cpp
     scan_test.cpp
+    schema_api_test.cpp
+    schema_helpers_test.cpp
     segmented_test.cpp
     tools_test.cpp)
 target_link_libraries(rbscan_tests PRIVATE rbscan::rbscan GTest::gtest_main rbscan::warnings)
