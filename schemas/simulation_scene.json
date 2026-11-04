@@ -1,0 +1,87 @@
+{
+  "schema": "raybotic.simulation_scene",
+  "version": 1,
+  "category": "simulations",
+  "description": "Objects of an X-ray simulation with their meshes, placements and materials, and the settings of simulation, tube and detector. 'document' holds the application's complete scene document and is the source of truth for placement and settings; the objects and registration tables and the setting attributes repeat it for other tools. The meshes themselves are stored only here, in the vertices and triangles tables, exactly as the application holds them: in the file units of their source (an STL has no unit, see unit), so the placement still applies. Object i owns rows first_vertex .. first_vertex + vertex_count - 1 of vertices and first_triangle .. first_triangle + triangle_count - 1 of triangles; its triangle indices count from its first vertex.",
+  "attributes": {
+    "application": { "dtype": "string", "required": true, "description": "What wrote the scene, e.g. RayBotic Viewer 0.1.1." },
+    "format": { "dtype": "string", "required": true, "description": "Format of 'document', e.g. raybotic-simulation-scene/1." },
+    "document": { "dtype": "string", "required": true, "description": "The complete scene document (JSON); its objects are the rows of objects, in order, and name no mesh files." },
+    "modified": { "dtype": "string", "description": "ISO 8601 UTC." },
+    "acquisition": { "dtype": "string", "description": "Node path of a ct_acquisition simulated from this scene." },
+    "object_names": { "dtype": "string", "array": true, "description": "Name of each row of objects." },
+    "object_sources": { "dtype": "string", "array": true, "description": "Where each object's mesh came from: the STL file (UTF-8) or a description such as 'Volumen part.rek'." },
+    "object_materials": { "dtype": "string", "array": true, "description": "Element symbol, or a formula where objects.is_compound is set." },
+    "registration_markers": { "dtype": "string", "array": true, "description": "Label of the marker of each row of registration." },
+    "spectrum_bin_kev": { "dtype": "float64", "units": "keV", "description": "Simulation: width of a spectrum bin." },
+    "focal_spot_samples": { "dtype": "int32", "description": "Simulation: samples across the focal spot." },
+    "scintillator": { "dtype": "string", "description": "Simulation: scintillator material." },
+    "scintillator_um": { "dtype": "float64", "units": "um", "description": "Simulation: scintillator thickness." },
+    "dark_counts": { "dtype": "float64", "units": "counts" },
+    "counts_per_photon": { "dtype": "float64" },
+    "photons_per_ua_ms_mm2": { "dtype": "float64", "description": "Photons per uA, ms and mm2 at 1 m." },
+    "read_noise_counts": { "dtype": "float64", "units": "counts" },
+    "poisson_noise": { "dtype": "bool" },
+    "voltage_kv": { "dtype": "float64", "units": "kV", "description": "Tube; missing when the scene has no tube settings." },
+    "current_ua": { "dtype": "float64", "units": "uA" },
+    "focal_spot_um": { "dtype": "float64", "units": "um" },
+    "filter_material": { "dtype": "string", "description": "Pre-filter; empty = none." },
+    "filter_thickness_mm": { "dtype": "float64", "units": "mm" },
+    "binning": { "dtype": "uint8", "description": "Detector; missing when the scene has no detector settings." },
+    "integration_time_ms": { "dtype": "float64", "units": "ms" },
+    "averages": { "dtype": "uint32" },
+    "gain": { "dtype": "float64" },
+    "sensor_width": { "dtype": "uint32", "units": "px", "description": "Simulated sensor without binning; missing when the scene asks for none." },
+    "sensor_height": { "dtype": "uint32", "units": "px" },
+    "pixel_pitch_u_um": { "dtype": "float64", "units": "um" },
+    "pixel_pitch_v_um": { "dtype": "float64", "units": "um" }
+  },
+  "series": {
+    "objects": {
+      "storage": "inline",
+      "description": "One row per object, in scene order; time = when the scene was written. World = file coordinates times unit and scale, rotated about the mesh's bounding-box centre (X, then Y, then Z, world axes), with that centre moved to position.",
+      "fields": {
+        "from_volume": { "dtype": "bool", "description": "Surface taken from a volume: the mesh is in world mm already and the placement is the identity." },
+        "unit": { "dtype": "uint8", "description": "File unit of the mesh: 0 mm, 1 cm, 2 m, 3 inch." },
+        "scale": { "dtype": "float64", "description": "On top of unit." },
+        "rotation": { "dtype": "float64", "shape": [3], "units": "deg", "description": "About the centre, X then Y then Z." },
+        "position": { "dtype": "float64", "shape": [3], "units": "mm", "description": "Where the bounding-box centre goes, in the scan's world frame." },
+        "is_compound": { "dtype": "bool", "description": "The material is a formula, not an element." },
+        "density": { "dtype": "float64", "units": "g/cm3", "description": "0 = the element's own density." },
+        "enabled": { "dtype": "bool", "description": "Part of the simulation." },
+        "colour": { "dtype": "float32", "shape": [3], "description": "RGB 0..1 in a 3D view." },
+        "first_vertex": { "dtype": "uint64", "description": "Row of its first vertex in vertices." },
+        "vertex_count": { "dtype": "uint64" },
+        "first_triangle": { "dtype": "uint64", "description": "Row of its first triangle in triangles." },
+        "triangle_count": { "dtype": "uint64" },
+        "first_registration": { "dtype": "uint64", "description": "Row of its first point in registration." },
+        "registration_count": { "dtype": "uint64" }
+      }
+    },
+    "vertices": {
+      "storage": "inline",
+      "description": "Mesh vertices, object after object, as the application holds them (bit for bit); time = when the scene was written.",
+      "fields": {
+        "position": { "dtype": "float32", "shape": [3], "description": "x, y, z in the object's file units (world mm for from_volume)." }
+      }
+    },
+    "triangles": {
+      "storage": "inline",
+      "description": "Mesh triangles, object after object; time = when the scene was written.",
+      "fields": {
+        "vertices": { "dtype": "uint32", "shape": [3], "description": "Corners, as rows counted from the object's first_vertex." }
+      }
+    },
+    "registration": {
+      "storage": "inline",
+      "description": "Points for registering an object onto the scan: a spot of the mesh and the marker that shows the same feature; object after object. time = when the scene was written.",
+      "fields": {
+        "marker_id": { "dtype": "int32", "description": "Marker id in the annotations; -1 = none." },
+        "placed": { "dtype": "bool", "description": "mesh_point has been set." },
+        "mesh_point": { "dtype": "float64", "shape": [3], "description": "In the object's file units." },
+        "section_axis": { "dtype": "int8", "description": "Section it was clicked in: axis 0..2; -1 = on the surface in a 3D view." },
+        "section_offset": { "dtype": "float64", "description": "Offset of that section, file units." }
+      }
+    }
+  }
+}

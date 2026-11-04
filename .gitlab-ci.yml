@@ -168,6 +168,17 @@ lint:clang-format:
       }
       Write-Host "All C++ files are compliant with .clang-format."
 
+lint:generated:
+  extends: .windows
+  stage: lint
+  script:
+    - *setup_python
+    - |
+      # include/raybotic/scan/schemas.hpp, python/rbscan/schema_api.py and
+      # tests/schema_api_test.cpp must match schemas/*.json.
+      & $venvPython tools/gen_schema_api.py --check
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 lint:version:
   extends: .windows
   stage: lint

@@ -12,7 +12,7 @@ TEST(Schema, BuiltinsAreRegistered) {
           "raybotic.camera/1", "raybotic.depth_camera/1", "raybotic.profile_scanner/1",
           "raybotic.force_torque/1", "raybotic.robot_arm/1", "raybotic.transform/1",
           "raybotic.ct_acquisition/1", "raybotic.annotations/1", "raybotic.ezrt_import/1",
-          "raybotic.volume/1"}) {
+          "raybotic.volume/1", "raybotic.simulation_scene/1"}) {
         EXPECT_NE(std::find(ids.begin(), ids.end(), id), ids.end()) << id;
     }
 }

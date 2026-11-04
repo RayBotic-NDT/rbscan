@@ -332,6 +332,21 @@ void SegmentedSeriesWriter::append(std::int64_t time_ns,
     impl_->append(time_ns, fields);
 }
 
+void SegmentedSeriesWriter::append_many(std::span<const std::int64_t> times,
+                                        std::span<const FieldValue> columns) {
+    detail::for_each_row(impl_->layout, times.size(), columns,
+                         [&](std::uint64_t i, std::span<const FieldValue> fields) {
+                             impl_->append(times[i], fields);
+                         });
+}
+void SegmentedSeriesWriter::append_many(std::int64_t time_ns, std::uint64_t count,
+                                        std::span<const FieldValue> columns) {
+    detail::for_each_row(impl_->layout, count, columns,
+                         [&](std::uint64_t, std::span<const FieldValue> fields) {
+                             impl_->append(time_ns, fields);
+                         });
+}
+
 void SegmentedSeriesWriter::flush() { impl_->flush(); }
 void SegmentedSeriesWriter::close() { impl_->close(); }
 

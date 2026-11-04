@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <raybotic/scan/rbscan.hpp>
+#include <raybotic/scan/schema_helpers.hpp>
 #include <vector>
 
 namespace rs = raybotic::scan;
@@ -41,6 +42,15 @@ int main(int argc, char** argv) {
         const auto last = images.read_sample("image", n - 1);
         if (images.size() != n || last.values<std::uint16_t>()[0] != n - 1) {
             std::cerr << "read back wrong data\n";
+            return 1;
+        }
+        // The typed helpers (schemas.hpp, header-only) see the same node.
+        namespace det = raybotic::scan::schemas::xray_detector;
+        const auto node = reader.node("sensors/detector_0");
+        const auto rows = det::read_image_rows(node, n - 1, 1);
+        if (det::read(node).sensor_width != w || rows.size() != 1 ||
+            rows[0].image.values<std::uint16_t>()[0] != n - 1) {
+            std::cerr << "typed helpers read back wrong data\n";
             return 1;
         }
     } catch (const std::exception& e) {

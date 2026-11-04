@@ -58,6 +58,22 @@ from ._rbscan import (  # noqa: E402
     version,
 )
 
+from . import schema_api  # noqa: E402  (typed helpers per schema)
+from .helpers import (  # noqa: E402
+    Marker,
+    Projection,
+    RegistrationPoint,
+    SceneObject,
+    Trajectory,
+    read_annotations,
+    read_projection,
+    read_simulation_scene,
+    read_trajectory_plan,
+    write_annotations,
+    write_simulation_scene,
+    write_trajectory_plan,
+)
+
 __version__ = version()
 
 __all__ = [
@@ -82,12 +98,25 @@ __all__ = [
     "register_schema_directory",
     "resolve_geometry",
     "schema",
+    "schema_api",
     "schemas",
     "validate",
     "validate_text",
     "version",
     "read_volume",
     "write_volume",
+    "Marker",
+    "Projection",
+    "RegistrationPoint",
+    "SceneObject",
+    "Trajectory",
+    "read_annotations",
+    "read_projection",
+    "read_simulation_scene",
+    "read_trajectory_plan",
+    "write_annotations",
+    "write_simulation_scene",
+    "write_trajectory_plan",
 ]
 
 

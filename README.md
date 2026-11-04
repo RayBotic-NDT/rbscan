@@ -18,12 +18,13 @@ It combines the convenience of **standard HDF5** with the write/read speed and c
 2. [Installation](#installation)
 3. [Python Quickstart](#python-quickstart)
 4. [C++ Quickstart](#c-quickstart)
-5. [Compression Codecs](#compression-codecs)
-6. [Command-Line Tool (`rbscan`)](#command-line-tool-rbscan)
-7. [Built-in Schemas & Custom Sensors](#built-in-schemas--custom-sensors)
-8. [Building from Source](#building-from-source)
-9. [Development, CI & Releases](#development-ci--releases)
-10. [License](#license)
+5. [Typed API per Schema](#typed-api-per-schema)
+6. [Compression Codecs](#compression-codecs)
+7. [Command-Line Tool (`rbscan`)](#command-line-tool-rbscan)
+8. [Built-in Schemas & Custom Sensors](#built-in-schemas--custom-sensors)
+9. [Building from Source](#building-from-source)
+10. [Development, CI & Releases](#development-ci--releases)
+11. [License](#license)
 
 ---
 
@@ -153,6 +154,12 @@ vol_array, tf_matrix, attrs = rbscan.read_volume("D:/scans/part_42", "volumes/re
 More runnable examples live in [`python/examples/`](https://github.com/RayBotic-NDT/rbscan/tree/main/python/examples/):
 - [`record_ct_scan.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/record_ct_scan.py) — records a synthetic CT scan across two processes, resolves geometry, and reads it back.
 - [`inspect_scan.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/inspect_scan.py) — prints a summary of all nodes and series in a scan.
+- [`typed_ct_scan.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/typed_ct_scan.py) — records a small CT scan with the typed API, each table in one call, and reads a projection back with its image.
+- [`simulation_scene.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/simulation_scene.py) — stores STL meshes (or built-in shapes) as a simulation scene and checks that they come back bit for bit.
+- [`plan_and_annotate.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/plan_and_annotate.py) — a trajectory plan (circle and laminography) and markers clicked in projections.
+- [`dump_typed.py`](https://github.com/RayBotic-NDT/rbscan/blob/main/python/examples/dump_typed.py) — prints every node through its typed dataclasses.
+
+The C++ examples in [`examples/`](https://github.com/RayBotic-NDT/rbscan/tree/main/examples/) cover the same ground (`rbscan_typed_ct_scan`, `rbscan_simulation_scene`, `rbscan_plan_and_annotate`) and are built with the project. Typed API details: [docs/api.md](docs/api.md#runnable-examples).
 
 ---
 
@@ -183,6 +190,39 @@ auto reader = rs::ScanReader::open("D:/scans/part_42");
 auto series = reader.node("sensors/detector_0").series("image");
 auto sample = series.read_sample("image", 0);          // single projection
 auto stack  = series.read("image", 0, 10);             // 10 projections decoded in parallel
+```
+
+---
+
+## Typed API per Schema
+
+Every built-in schema also has a typed API, generated from `schemas/*.json`:
+an attributes struct (C++) or dataclass (Python) per schema and a row and
+column type per series, with `add`, `read`, `append` and `read_<series>`.
+Large tables go in one call (`append_many`). Helpers write and read schemas
+whose tables belong together: volumes, simulation scenes (object by object,
+with their meshes), trajectory plans, annotations and a CT projection with its
+image. Details and examples: [docs/api.md](docs/api.md).
+
+```cpp
+#include <raybotic/scan/schemas.hpp>
+namespace det = raybotic::scan::schemas::xray_detector;
+
+det::Attributes a;
+a.frame_id = "scan_detector";
+a.simulated = false;
+a.sensor_width = a.sensor_height = 3072;
+a.pixel_pitch_u_um = a.pixel_pitch_v_um = 139.0;
+auto node = det::add(scan, "detector_0", a);
+// ...
+const det::Attributes back = det::read(reader.node("sensors/detector_0"));
+```
+
+```python
+from rbscan import schema_api as sc
+
+node = sc.XraySource(frame_id="scan_source", simulated=True).add(scan, "source_0")
+state = sc.XraySourceState.read(reader["sensors/source_0"])   # numpy columns
 ```
 
 ---
@@ -241,6 +281,7 @@ All CLI operations are also exposed in C++ (`rs::summarize`, `rs::validate`, `rs
 | `raybotic.annotations` | `annotations` | `markers`, `observations` + full viewer annotation document. |
 | `raybotic.reconstruction` | `reconstructions` | `rois` + the complete reconstruction settings document; `current` is being edited, `run_<time>` records each run. |
 | `raybotic.trajectory_plan` | `trajectories` | `trajectories`, `poses` — planned scan orbits (circle, laminography) in drive order. |
+| `raybotic.simulation_scene` | `simulations` | `objects`, `vertices`, `triangles`, `registration` — X-ray simulation objects with their meshes (bit for bit, file units), placement and material, the tube, detector and simulation settings and the complete scene document. |
 | `raybotic.ezrt_import` | `imports` | `headers` — original EZRT projection headers for lossless round-trip conversion. |
 
 ### Adding a Custom Schema
